@@ -46,7 +46,10 @@ class DataLoader:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-            return df
+            # 获取保单年度（从数据中的policy_start_year字段）
+            policy_start_year = df['policy_start_year'].iloc[0] if 'policy_start_year' in df.columns and not df.empty else None
+
+            return df, policy_start_year
             
         except Exception as e:
             raise RuntimeError(f"读取数据失败: {str(e)}")

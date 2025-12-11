@@ -29,12 +29,15 @@ def main():
 
     print("开始生成经营分析报告...")
     print(f"数据源: {csv_path}")
-    
+
+    # 确保输出目录存在
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
     try:
         generator = ReportGenerator(
-            csv_path, 
-            template_path, 
-            output_path, 
+            csv_path,
+            template_path,
+            output_path,
             mapping_path,
             year_plans_path=year_plans_path,
             thresholds_path=thresholds_path,

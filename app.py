@@ -52,11 +52,14 @@ def upload_file():
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             
+            # 确保输出目录存在
+            os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+
             # Generate Report
             generator = ReportGenerator(
-                filepath, 
-                TEMPLATE_PATH, 
-                OUTPUT_PATH, 
+                filepath,
+                TEMPLATE_PATH,
+                OUTPUT_PATH,
                 MAPPING_PATH,
                 year_plans_path=YEAR_PLANS_PATH,
                 thresholds_path=THRESHOLDS_PATH

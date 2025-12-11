@@ -30,6 +30,8 @@ class ReportGenerator:
         self.loader = DataLoader(csv_path)
         self.mapper = Mapper(mapping_path)
         self.calculator = None
+        self.policy_start_year = None
+        self.time_progress_enabled = True
         
         self.year_plans = {}
         if year_plans_path and os.path.exists(year_plans_path):
@@ -46,7 +48,20 @@ class ReportGenerator:
 
     def generate(self):
         # 1. Load Data
-        df = self.loader.load_data()
+        load_result = self.loader.load_data()
+        if isinstance(load_result, tuple) and len(load_result) >= 2:
+            df, raw_policy_start_year = load_result[0], load_result[1]
+        else:
+            df = load_result
+            raw_policy_start_year = None
+
+        if raw_policy_start_year is not None and not pd.isna(raw_policy_start_year):
+            try:
+                self.policy_start_year = int(raw_policy_start_year)
+            except (TypeError, ValueError):
+                self.policy_start_year = None
+        else:
+            self.policy_start_year = None
         
         # Determine week from data if not provided or default
         data_week = None
@@ -85,13 +100,16 @@ class ReportGenerator:
         # Future Expansion: Multi-week mode support
         # TODO: Add logic to handle date ranges and multiple weeks (e.g., self.week_start, self.week_end)
         
-        # Set year if missing
-        if self.year is None:
+        # Set year
+        if self.policy_start_year is not None:
+            self.year = self.policy_start_year
+        elif self.year is None:
             inferred_year = self._infer_year_from_path(self.csv_path)
             self.year = inferred_year if inferred_year else 2025
-        
+
         # Refresh calculator with final week
-        self.calculator = KPICalculator(week=self.week)
+        self.time_progress_enabled = (self.year == 2025)
+        self.calculator = KPICalculator(week=self.week, enable_time_progress=self.time_progress_enabled)
         
         # Compute report date if not provided
         if not self.report_date:
@@ -105,12 +123,13 @@ class ReportGenerator:
         # 3. Calculate Global Totals (for Shares)
         # Use "四川分公司" as total plan if available
         # In single org mode, try to use that org's plan
+        plan_map = self.year_plans if self.time_progress_enabled else {}
         total_plan_key = self.org_name if self.is_single_org_mode else "四川分公司"
-        total_plan = self.year_plans.get(total_plan_key, None)
+        total_plan = plan_map.get(total_plan_key, None)
         
         # If total_plan is None and not in single mode, fallback to default logic or sum
         if total_plan is None and not self.is_single_org_mode:
-             total_plan = self.year_plans.get("四川分公司", None)
+            total_plan = plan_map.get("四川分公司", None)
 
         global_kpis = self.calculator.calculate_kpis(df, manual_plan=total_plan)
         total_premium = global_kpis['签单保费']
@@ -120,7 +139,7 @@ class ReportGenerator:
         
         # 4.1 By Org (Third Level)
         # Pass year_plans for Org dimension
-        data_by_org = self._process_dimension(df, 'third_level_organization', '机构', total_premium, total_claim, plan_map=self.year_plans)
+        data_by_org = self._process_dimension(df, 'third_level_organization', '机构', total_premium, total_claim, plan_map=plan_map)
         
         # 4.2 By Category (Customer Category 3)
         data_by_category = self._process_dimension(df, 'customer_category_3', '客户类别', total_premium, total_claim)
@@ -229,10 +248,11 @@ class ReportGenerator:
         new_content = re.sub(r'const DATA = \{[\s\S]*?\};', f'const DATA = {json_str};', template_content)
         
         # Update Title and Header
+        year_text = f"{self.year}" if self.year is not None else ""
         if self.is_single_org_mode:
-            new_title = f"{self.org_name}车险第{self.week}周经营分析"
+            new_title = f"{self.org_name}车险{year_text}保单第{self.week}周经营分析"
         else:
-            new_title = f"{self.org_name}分公司车险第{self.week}周经营分析"
+            new_title = f"{self.org_name}分公司车险{year_text}保单第{self.week}周经营分析"
             
         new_content = re.sub(r'<title>.*?</title>', f'<title>{new_title}</title>', new_content)
         new_content = re.sub(r'<h1>.*?</h1>', f'<h1>{new_title}</h1>', new_content)

@@ -5,7 +5,7 @@ class KPICalculator:
     """
     车险 KPI 计算引擎，遵循 SKILL.md 定义的算法。
     """
-    def __init__(self, current_date=None, week=49):
+    def __init__(self, current_date=None, week=49, enable_time_progress=True):
         self.current_date = current_date
         # 2025年第49周截止日是 12月6日，第340天
         # 动态计算天数: 340 + (week - 49) * 7
@@ -14,6 +14,7 @@ class KPICalculator:
         self.days_passed = max(1, min(365, raw_days))
         self.total_days = 365
         self.time_progress = self.days_passed / self.total_days
+        self.time_progress_enabled = enable_time_progress
 
     def safe_divide(self, numerator, denominator):
         """安全除法，分母为0返回0"""
@@ -54,11 +55,10 @@ class KPICalculator:
         # 保费时间进度达成率
         # (累计签单保费/年度目标) / (已过天数/365)
         # 如果年度目标为0，则无法计算
-        if sum_annual_plan > 0:
+        time_progress_achievement = None
+        if self.time_progress_enabled and sum_annual_plan > 0:
             premium_achievement_rate = self.safe_divide(sum_signed_premium, sum_annual_plan)
             time_progress_achievement = self.safe_divide(premium_achievement_rate, self.time_progress) * 100
-        else:
-            time_progress_achievement = None # 明确返回 None，以便前端识别无计划数据
 
         # 3. 核心金额指标 (万元，保留2位小数，SKILL说四舍五入到整数，但模板显示小数，这里先保留小数)
         # 模板显示: 签单保费 39690.73 万元 (样例数据是396907295.84元 -> 39690.73万元)
@@ -204,4 +204,3 @@ class KPICalculator:
             # Template JSON: "签单保费": 11277731.88 (Yuan).
             # So I should return Yuan.
         }
-
