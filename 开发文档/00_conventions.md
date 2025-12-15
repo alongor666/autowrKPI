@@ -215,7 +215,7 @@ git commit -m "更新F001功能及元数据"
 
 ### AI 协作者职责
 - ✅ 修改前先读取 KNOWLEDGE_INDEX.md 定位功能
-- ✅ 修改后运行 generate_index.py 更新索引
+- ✅ 修改后运行 `python3 scripts/generate_docs_index.py 开发文档` 更新索引
 - ✅ 保持元数据与代码的一致性
 
 ---
@@ -226,7 +226,7 @@ git commit -m "更新F001功能及元数据"
 1. 创建 `01_features/F00X_功能名称/` 目录
 2. 编写 `meta.json` 和 `README.md`
 3. 实现代码功能
-4. 运行 `generate_index.py` 更新索引
+4. 运行 `python3 scripts/generate_docs_index.py 开发文档` 更新索引
 
 ### Q: meta.json 中的路径是相对还是绝对？
 - 使用相对于项目根目录的路径
