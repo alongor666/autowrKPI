@@ -27,7 +27,7 @@ pip install -r requirements.txt
 ```bash
 python main.py \
   --csv data/test_2025保单第50周变动成本率明细表_四川分公司.csv \
-  --template templates/四川分公司车险第49周经营分析模板.html \
+  --template static/templates/四川分公司车险第49周经营分析模板.html \
   --output output/经营分析周报.html \
   --mapping reference/business_type_mapping.json \
   --year-plans reference/year-plans.json \
@@ -72,7 +72,7 @@ python app.py
 
 ### 模板
 
-- `templates/四川分公司车险第49周经营分析模板.html`
+- `static/templates/四川分公司车险第49周经营分析模板.html`
 
 生成逻辑会把计算得到的 JSON 数据注入到模板中的 `const DATA = {...};` 段落，并自动更新 `<title>` / `<h1>` 以及日期信息。
 
@@ -89,12 +89,12 @@ python app.py
 ├── app.py                    # Web 上传入口（Flask）
 ├── main.py                   # CLI 入口
 ├── src/                      # 核心逻辑：加载、映射、计算、生成
-├── templates/                # 报告模板 + 上传页模板
 ├── reference/                # 映射/阈值/年度计划配置
 ├── asset/                    # 本地静态资源（如 echarts.min.js）
 ├── data/                     # 示例/测试数据
 ├── output/                   # 运行后生成（默认不存在，运行时创建）
 └── static/                   # 静态站点（可选，用于 Pages 部署）
+    └── templates/             # 报告模板 + 上传页模板
 ```
 
 ## 静态站点（可选）

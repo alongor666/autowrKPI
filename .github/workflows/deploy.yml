@@ -40,7 +40,6 @@ jobs:
         run: |
           mkdir -p static/docs
           cp -r 开发文档/* static/docs/
-          cp -r templates static/
           cp -r reference static/
           cp -r asset static/
           

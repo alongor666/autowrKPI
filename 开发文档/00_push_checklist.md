@@ -52,9 +52,18 @@ vim 开发文档/01_features/F00X_xxx/meta.json
 
 **修复方法**:
 ```bash
-# 自动更新今天日期
-sed -i '' 's/"updated_at": "[^"]*"/"updated_at": "'$(date +%Y-%m-%d)'"/' \
-  开发文档/01_features/F00X_xxx/meta.json
+# 自动更新今天日期（macOS/Linux 通用）
+python3 - <<'PY' 开发文档/01_features/F00X_xxx/meta.json
+import re
+import sys
+from datetime import date
+
+path = sys.argv[1]
+text = open(path, 'r', encoding='utf-8').read()
+today = date.today().strftime('%Y-%m-%d')
+updated = re.sub(r'("updated_at"\s*:\s*")[^"]*(")', rf'\1{today}\2', text)
+open(path, 'w', encoding='utf-8').write(updated)
+PY
 
 git add 开发文档/01_features/F00X_xxx/meta.json
 git commit --amend --no-edit

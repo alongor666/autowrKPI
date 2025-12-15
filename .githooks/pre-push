@@ -16,17 +16,35 @@ NC='\033[0m' # No Color
 ERRORS=0
 WARNINGS=0
 
+mtime() {
+    python3 -c 'import os,sys; print(int(os.path.getmtime(sys.argv[1])))' "$1" 2>/dev/null || echo 0
+}
+
+latest_meta_json() {
+    python3 - <<'PY'
+import glob
+import os
+
+paths = glob.glob('开发文档/01_features/*/meta.json')
+if not paths:
+    raise SystemExit(0)
+
+latest = max(paths, key=lambda p: os.path.getmtime(p))
+print(latest)
+PY
+}
+
 # ============================================
 # 1. 检查 KNOWLEDGE_INDEX.md 是否为最新
 # ============================================
 echo -e "\n${YELLOW}[检查1]${NC} 验证知识库索引是否最新..."
 
 # 获取最后修改的功能单元 meta.json
-LAST_META_MODIFIED=$(find 开发文档/01_features -name "meta.json" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-INDEX_MODIFIED=$(stat -f "%m" 开发文档/KNOWLEDGE_INDEX.md 2>/dev/null || echo 0)
+LAST_META_MODIFIED=$(latest_meta_json 2>/dev/null || echo "")
+INDEX_MODIFIED=$(mtime 开发文档/KNOWLEDGE_INDEX.md)
 
 if [ -n "$LAST_META_MODIFIED" ]; then
-    META_TIME=$(stat -f "%m" "$LAST_META_MODIFIED" 2>/dev/null || echo 0)
+    META_TIME=$(mtime "$LAST_META_MODIFIED")
 
     if [ "$META_TIME" -gt "$INDEX_MODIFIED" ]; then
         echo -e "${RED}✗ KNOWLEDGE_INDEX.md 未更新！${NC}"
@@ -109,7 +127,7 @@ echo -e "\n${YELLOW}[检查4]${NC} 验证开发记录..."
 LINES_CHANGED=$(git diff --stat HEAD origin/main 2>/dev/null | tail -1 | grep -o '[0-9]* insertion' | grep -o '[0-9]*' || echo 0)
 
 if [ "$LINES_CHANGED" -gt 100 ]; then
-    DEVLOG_MODIFIED=$(stat -f "%m" 开发文档/reports/DEVLOG.md 2>/dev/null || echo 0)
+    DEVLOG_MODIFIED=$(mtime 开发文档/reports/DEVLOG.md)
     LAST_COMMIT_TIME=$(git log -1 --format=%ct 2>/dev/null || echo 0)
 
     if [ "$DEVLOG_MODIFIED" -lt "$LAST_COMMIT_TIME" ]; then

@@ -7,6 +7,43 @@
 
 ## 2025-12-15
 
+### 🧹 工程整理：根目录结构对齐与生成物清理
+
+**摘要**: 清理根目录运行产物，并将 CLI/Web/CI/文档里仍指向旧 `templates/` 的路径更新为当前 `static/templates/` 结构，避免运行与部署时找不到模板。
+
+**主要变更**:
+1. **入口脚本路径对齐**
+   - `app.py`：Flask `template_folder` 指向 `static/templates/`，并对 `reference/`、`asset/` 做兼容性兜底
+   - `main.py`：默认模板路径切换到 `static/templates/`，默认示例 CSV 指向仓库现有文件
+
+2. **CI 流水线修复**
+   - `.github/workflows/deploy.yml`：移除复制不存在的根目录 `templates/` 步骤，避免 GitHub Actions 失败
+
+3. **文档/注册信息同步**
+   - `README.md`：更新模板路径示例与目录结构说明
+   - `开发文档/01_features/F005_report_generation/meta.json`：修正模板文件登记路径
+   - `开发文档/KNOWLEDGE_INDEX.md`：重新生成以反映最新注册信息
+
+4. **清理与忽略规则**
+   - 删除本地生成物：`venv/`、`.pytest_cache/`、`archive/`、`__pycache__/`
+   - `.gitignore`：补充 `.venv/` 与 `.pytest_cache/`
+
+**影响文件**:
+- `app.py` [UPDATED]
+- `main.py` [UPDATED]
+- `README.md` [UPDATED]
+- `.github/workflows/deploy.yml` [UPDATED]
+- `.gitignore` [UPDATED]
+- `开发文档/01_features/F005_report_generation/meta.json` [UPDATED]
+- `开发文档/KNOWLEDGE_INDEX.md` [UPDATED]
+
+**验证方式**:
+- `python3 -m compileall -q app.py main.py src tests`
+- `python3 scripts/generate_docs_index.py 开发文档`
+- 运行“文档-代码一致性检查”确认通过（仅保留 DEVLOG 记录提醒）
+
+---
+
 ### 🎨 UI 增强：气泡图动态标签系统优化
 
 **摘要**: 重新设计所有气泡图的动态标签格式，提升数据可读性与风险识别能力。

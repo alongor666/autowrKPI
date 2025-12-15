@@ -22,7 +22,17 @@ function dev-commit() {
     # 更新 meta.json 日期
     local meta_file="开发文档/01_features/${feature_id}_*/meta.json"
     if ls $meta_file 1> /dev/null 2>&1; then
-        sed -i '' 's/"updated_at": "[^"]*"/"updated_at": "'$(date +%Y-%m-%d)'"/' $meta_file
+        python3 - <<'PY' $meta_file
+import re
+import sys
+from datetime import date
+
+path = sys.argv[1]
+text = open(path, 'r', encoding='utf-8').read()
+today = date.today().strftime('%Y-%m-%d')
+updated = re.sub(r'("updated_at"\s*:\s*")[^"]*(")', rf'\1{today}\2', text)
+open(path, 'w', encoding='utf-8').write(updated)
+PY
         echo -e "${GREEN}✓ 已更新 meta.json${NC}"
     fi
 
@@ -73,10 +83,7 @@ function dev-log() {
     fi
 
     local log_file="开发文档/reports/DEVLOG.md"
-    local date=$(date +%Y-%m-%d)
-
-    # 打开编辑器
-    vim + "$log_file"
+    ${EDITOR:-vim} "$log_file"
 }
 
 # 4. 检查合规性
@@ -84,11 +91,22 @@ function dev-check() {
     echo -e "${YELLOW}🔍 执行合规性检查...${NC}"
 
     # 检查索引是否最新
-    local last_meta=$(find 开发文档/01_features -name "meta.json" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-    local index_time=$(stat -f "%m" 开发文档/KNOWLEDGE_INDEX.md 2>/dev/null || echo 0)
+    local last_meta=$(python3 - <<'PY'
+import glob
+import os
+
+paths = glob.glob('开发文档/01_features/*/meta.json')
+if not paths:
+    raise SystemExit(0)
+
+latest = max(paths, key=lambda p: os.path.getmtime(p))
+print(latest)
+PY
+)
+    local index_time=$(python3 -c 'import os; print(int(os.path.getmtime("开发文档/KNOWLEDGE_INDEX.md")))' 2>/dev/null || echo 0)
 
     if [ -n "$last_meta" ]; then
-        local meta_time=$(stat -f "%m" "$last_meta" 2>/dev/null || echo 0)
+        local meta_time=$(python3 -c 'import os,sys; print(int(os.path.getmtime(sys.argv[1])))' "$last_meta" 2>/dev/null || echo 0)
         if [ "$meta_time" -gt "$index_time" ]; then
             echo -e "${YELLOW}⚠️  知识库索引需要更新${NC}"
             echo "运行: python3 scripts/generate_docs_index.py 开发文档"

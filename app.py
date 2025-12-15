@@ -1,4 +1,12 @@
-from flask import Flask, render_template, request, send_file, jsonify, redirect, url_for, send_from_directory
+from flask import (
+    Flask,
+    jsonify,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    url_for,
+)
 import os
 import sys
 
@@ -7,22 +15,44 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.report_generator import ReportGenerator
 
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
-
 # Constants
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE_PATH = os.path.join(BASE_DIR, 'templates', '四川分公司车险第49周经营分析模板.html')
+STATIC_DIR = os.path.join(BASE_DIR, 'static')
+TEMPLATE_DIR = os.path.join(STATIC_DIR, 'templates')
+
+app = Flask(__name__, template_folder=TEMPLATE_DIR)
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'data')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
+
+def prefer_existing_path(*candidates: str) -> str:
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return candidates[0]
+
+
+TEMPLATE_PATH = prefer_existing_path(
+    os.path.join(TEMPLATE_DIR, '四川分公司车险第49周经营分析模板.html'),
+    os.path.join(BASE_DIR, 'templates', '四川分公司车险第49周经营分析模板.html'),
+)
 OUTPUT_PATH = os.path.join(BASE_DIR, 'output', '经营分析周报_web.html')
-MAPPING_PATH = os.path.join(BASE_DIR, 'reference', 'business_type_mapping.json')
-YEAR_PLANS_PATH = os.path.join(BASE_DIR, 'reference', 'year-plans.json')
-THRESHOLDS_PATH = os.path.join(BASE_DIR, 'reference', 'thresholds.json')
+REFERENCE_DIR = prefer_existing_path(
+    os.path.join(STATIC_DIR, 'reference'),
+    os.path.join(BASE_DIR, 'reference'),
+)
+MAPPING_PATH = os.path.join(REFERENCE_DIR, 'business_type_mapping.json')
+YEAR_PLANS_PATH = os.path.join(REFERENCE_DIR, 'year-plans.json')
+THRESHOLDS_PATH = os.path.join(REFERENCE_DIR, 'thresholds.json')
 
 @app.route('/asset/<path:filename>')
 def serve_asset(filename):
     # 允许模板通过 /asset/... 访问本地静态资源（如 echarts）
-    return send_from_directory(os.path.join(BASE_DIR, 'asset'), filename)
+    asset_dir = prefer_existing_path(
+        os.path.join(STATIC_DIR, 'asset'),
+        os.path.join(STATIC_DIR, 'assets'),
+        os.path.join(BASE_DIR, 'asset'),
+    )
+    return send_from_directory(asset_dir, filename)
 
 @app.route('/')
 def index():
