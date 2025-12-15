@@ -27,6 +27,8 @@ class ReportGenerator:
         self.org_name = org_name
         self.year = year
         self.report_date = report_date
+        self.update_date = None
+        self.analysis_mode = None
         self.loader = DataLoader(csv_path)
         self.mapper = Mapper(mapping_path)
         self.calculator = None
@@ -54,6 +56,18 @@ class ReportGenerator:
         else:
             df = load_result
             raw_policy_start_year = None
+
+        # Extract update date from data if possible (snapshot_date / 更新日期)
+        if 'snapshot_date' in df.columns and not pd.isna(df['snapshot_date']).all():
+            try:
+                # Keep ISO date string (YYYY-MM-DD) as requested
+                self.update_date = str(pd.to_datetime(df['snapshot_date']).max().date())
+            except Exception:
+                # Fallback to raw max string
+                try:
+                    self.update_date = str(df['snapshot_date'].dropna().max()).strip()
+                except Exception:
+                    self.update_date = None
 
         if raw_policy_start_year is not None and not pd.isna(raw_policy_start_year):
             try:
@@ -96,6 +110,8 @@ class ReportGenerator:
                     # Update org_name if it's currently the default "四川" or None
                     if self.org_name == "四川" or self.org_name is None:
                         self.org_name = orgs[0]
+
+        self.analysis_mode = "单机构模式" if self.is_single_org_mode else "多机构对比"
         
         # Future Expansion: Multi-week mode support
         # TODO: Add logic to handle date ranges and multiple weeks (e.g., self.week_start, self.week_end)
@@ -112,8 +128,9 @@ class ReportGenerator:
         self.calculator = KPICalculator(week=self.week, enable_time_progress=self.time_progress_enabled)
         
         # Compute report date if not provided
+        # Prefer extracted update date over computed ISO-week date for display
         if not self.report_date:
-            self.report_date = self._calc_report_date(self.year, self.week)
+            self.report_date = self.update_date or self._calc_report_date(self.year, self.week)
         
         # 2. Preprocess & Map
         # Add standardized columns
@@ -164,7 +181,10 @@ class ReportGenerator:
                 "四象限基准线": self.quadrant_baselines,
                 "问题机构识别阈值": self.thresholds
             },
+            "policyYear": self.year,
             "week": self.week,
+            "updateDate": self.update_date,
+            "analysisMode": self.analysis_mode,
             "organization": self.org_name,
             "isSingleOrgMode": self.is_single_org_mode
         }
@@ -245,21 +265,36 @@ class ReportGenerator:
             
         # Inject Data
         json_str = json.dumps(data, ensure_ascii=False, indent=2, cls=NumpyEncoder)
-        new_content = re.sub(r'const DATA = \{[\s\S]*?\};', f'const DATA = {json_str};', template_content)
+        # Support `let/const/var DATA = {...};` or placeholder `let DATA = {};`
+        new_content, replaced = re.subn(
+            r'\b(?:const|let|var)\s+DATA\s*=\s*\{[\s\S]*?\};',
+            f'const DATA = {json_str};',
+            template_content,
+            count=1,
+        )
+        if replaced == 0:
+            new_content, replaced = re.subn(
+                r'\b(?:const|let|var)\s+DATA\s*=\s*\{\s*\}\s*;[^\n]*',
+                f'const DATA = {json_str};',
+                template_content,
+                count=1,
+            )
+        if replaced == 0:
+            raise ValueError("模板中未找到可替换的 DATA 占位符（期望 `let/const/var DATA = ...;`）")
         
         # Update Title and Header
         year_text = f"{self.year}" if self.year is not None else ""
-        if self.is_single_org_mode:
-            new_title = f"{self.org_name}车险{year_text}保单第{self.week}周经营分析"
-        else:
-            new_title = f"{self.org_name}分公司车险{year_text}保单第{self.week}周经营分析"
+        org_text = self.org_name if self.is_single_org_mode else f"{self.org_name}分公司"
+        update_text = self.update_date or ""
+        mode_text = self.analysis_mode or ("单机构模式" if self.is_single_org_mode else "多机构对比")
+        new_title = f"{org_text}车险经营分析（保单年度{year_text}·第{self.week}周·更新日期{update_text}·{mode_text}）"
             
         new_content = re.sub(r'<title>.*?</title>', f'<title>{new_title}</title>', new_content)
         new_content = re.sub(r'<h1>.*?</h1>', f'<h1>{new_title}</h1>', new_content)
         
         # Update date line if present
         if self.report_date:
-            new_content = re.sub(r'数据截止日期：[^<\n]*', f'数据截止日期：{self.report_date}', new_content)
+            new_content = re.sub(r'(数据截止日期|更新日期)：[^<\n]*', f'更新日期：{self.report_date}', new_content)
         
         with open(self.output_path, 'w', encoding='utf-8') as f:
             f.write(new_content)

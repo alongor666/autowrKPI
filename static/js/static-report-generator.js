@@ -680,14 +680,18 @@ class StaticReportGenerator {
             week = String(weekValue).replace('第', '').replace('周', '').trim();
         }
 
-        // 提取更新日期
+        // 提取更新日期（优先取全量数据的最大日期，格式化为 YYYY-MM-DD）
         let updateDate = null;
-        const dateValue = findFieldValue(fieldMapping.date);
-        if (dateValue) {
-            updateDate = String(dateValue).trim();
-            // 格式化日期为 YYYY-MM-DD
-            if (updateDate.includes('T')) {
-                updateDate = updateDate.split('T')[0];
+        const dateField = fieldMapping.date.find(f => firstRow[f] !== undefined);
+        if (dateField) {
+            const maxDate = csvData
+                .map(row => row[dateField])
+                .filter(v => v !== undefined && v !== null && String(v).trim() !== '')
+                .map(v => String(v).trim())
+                .sort()
+                .slice(-1)[0];
+            if (maxDate) {
+                updateDate = maxDate.includes('T') ? maxDate.split('T')[0] : maxDate;
             }
         }
 
@@ -720,8 +724,9 @@ class StaticReportGenerator {
         }
 
         // 生成标题
-        const modeText = analysisMode === 'single' ? '' : '（多机构对比）';
-        const title = `${company}车险第${week}周经营分析${modeText}`;
+        const analysisModeText = analysisMode === 'single' ? '单机构模式' : '多机构对比';
+        const updateDateText = updateDate || '未知';
+        const title = `${company}车险经营分析（保单年度${year}·第${week}周·更新日期${updateDateText}·${analysisModeText}）`;
 
         return {
             year: year,
@@ -736,7 +741,7 @@ class StaticReportGenerator {
             detectedFields: {
                 yearField: fieldMapping.year.find(f => firstRow[f] !== undefined),
                 weekField: fieldMapping.week.find(f => firstRow[f] !== undefined),
-                dateField: fieldMapping.date.find(f => firstRow[f] !== undefined),
+                dateField: dateField,
                 orgField: orgField
             }
         };
@@ -760,10 +765,11 @@ class StaticReportGenerator {
         let html = this.template;
         
         // 替换动态标题信息
-        html = html.replace(/华安保险车险第49周经营分析 - 四川/g, dynamicInfo.title);
-        html = html.replace(/第49周/g, `第${dynamicInfo.week}周`);
-        html = html.replace(/2025/g, dynamicInfo.year);
-        html = html.replace(/四川分公司/g, dynamicInfo.company);
+        html = html.replace(/<title>.*?<\/title>/, `<title>${dynamicInfo.title}</title>`);
+        html = html.replace(/<h1>.*?<\/h1>/, `<h1>${dynamicInfo.title}</h1>`);
+        if (dynamicInfo.updateDate) {
+            html = html.replace(/(数据截止日期|更新日期)：[^<\n]*/g, `更新日期：${dynamicInfo.updateDate}`);
+        }
         
         // 替换数据占位符
         html = html.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
