@@ -549,8 +549,8 @@
             </div>
             
             <div class="sub-tabs">
-                <div class="sub-tab active" onclick="switchSubTab('loss', 'bubble')">气泡图分析</div>
-                <div class="sub-tab" onclick="switchSubTab('loss', 'quadrant')">二级指标分析</div>
+                <div class="sub-tab active" onclick="switchSubTab('loss', 'bubble')">赔付VS占比</div>
+                <div class="sub-tab" onclick="switchSubTab('loss', 'quadrant')">频度VS额度</div>
             </div>
 
             <div class="ppt-slide">
@@ -1649,7 +1649,7 @@
                     const dim = currentDimensions[tab];
                     const tabLabelMap = { overview: '经营概览', premium: '保费进度', cost: '变动成本', loss: '损失暴露', expense: '费用支出' };
                     const dimLabelMap = { org: '三级机构', category: '客户类别', businessType: '业务类型' };
-                    const subTabLabelMapLoss = { bubble: '气泡图分析', quadrant: '二级指标分析' };
+                    const subTabLabelMapLoss = { bubble: '赔付VS占比', quadrant: '频度VS额度' };
                     let title = '';
                     let body = [];
                     if (tab === 'overview') {
@@ -1950,7 +1950,8 @@
                                 return `${d.name}<br/>
                                        满期赔付率: ${d.value[0].toFixed(1)}%<br/>
                                        费用率: ${d.value[1].toFixed(1)}%<br/>
-                                       签单保费占比: ${d.value[3].toFixed(1)}%`;
+                                       变动成本率: ${d.value[2].toFixed(1)}%<br/>
+                                       保费占比: ${d.value[3].toFixed(1)}%`;
                             }
                         },
                         xAxis: {
@@ -1988,12 +1989,28 @@
                             label: {
                                 show: true,
                                 position: 'inside',
-                                formatter: params => `${params.data.name} ${params.data.value[2].toFixed(1)}%`,
+                                formatter: params => {
+                                    const name = params.data.name;
+                                    const paidRate = params.data.value[0].toFixed(1);
+                                    const expenseRate = params.data.value[1].toFixed(1);
+                                    const costRate = params.data.value[2].toFixed(1);
+                                    return `{b|${name}} ${paidRate}% | ${expenseRate}% | ${costRate}%`;
+                                },
                                 fontSize: 10,
-                                fontWeight: 'bold',
-                                color: 'white',
-                                textBorderColor: 'black',
-                                textBorderWidth: 2
+                                color: params => {
+                                    const costRate = params.data.value[2];
+                                    const threshold = DATA.thresholds['问题机构识别阈值']['变动成本率超标'];
+                                    return costRate > threshold ? '#d32f2f' : 'white';
+                                },
+                                textBorderColor: params => {
+                                    const costRate = params.data.value[2];
+                                    const threshold = DATA.thresholds['问题机构识别阈值']['变动成本率超标'];
+                                    return costRate > threshold ? '#8b0000' : 'black';
+                                },
+                                textBorderWidth: 2,
+                                rich: {
+                                    b: { fontWeight: 'bold' }
+                                }
                             },
                             labelLayout: { hideOverlap: true },
                             markLine: {
@@ -2149,6 +2166,7 @@
                                     return `${d.name}<br/>
                                            满期赔付率: ${d.value[0].toFixed(1)}%<br/>
                                            已报告赔款占比: ${d.value[1].toFixed(1)}%<br/>
+                                           保费占比: ${d.value[4].toFixed(1)}%<br/>
                                            签单保费: ${Math.round(d.value[3]/10000)}万元`;
                                 }
                             },
@@ -2179,7 +2197,7 @@
                                 },
                                 data: data.map(d => ({
                                     name: d[dimField],
-                                    value: [d.满期赔付率, d.已报告赔款占比, d.变动成本率, d.签单保费],
+                                    value: [d.满期赔付率, d.已报告赔款占比, d.变动成本率, d.签单保费, d.保费占比],
                                     itemStyle: {
                                         color: getStatusColor(d.变动成本率),
                                         opacity: 0.7
@@ -2188,12 +2206,28 @@
                                 label: {
                                     show: true,
                                     position: 'inside',
-                                    formatter: params => `${params.data.name} ${params.data.value[2].toFixed(1)}%`,
+                                    formatter: params => {
+                                        const name = params.data.name;
+                                        const paidRate = params.data.value[0].toFixed(1);
+                                        const claimShare = params.data.value[1].toFixed(1);
+                                        const premiumShare = params.data.value[4].toFixed(1);
+                                        return `{b|${name}} ${paidRate}% | ${claimShare}% | ${premiumShare}%`;
+                                    },
                                     fontSize: 10,
-                                    fontWeight: 'bold',
-                                    color: 'white',
-                                    textBorderColor: 'black',
-                                    textBorderWidth: 2
+                                    color: params => {
+                                        const claimShare = params.data.value[1];
+                                        const premiumShare = params.data.value[4];
+                                        return claimShare > premiumShare ? '#d32f2f' : 'white';
+                                    },
+                                    textBorderColor: params => {
+                                        const claimShare = params.data.value[1];
+                                        const premiumShare = params.data.value[4];
+                                        return claimShare > premiumShare ? '#8b0000' : 'black';
+                                    },
+                                    textBorderWidth: 2,
+                                    rich: {
+                                        b: { fontWeight: 'bold' }
+                                    }
                                 },
                                 labelLayout: { hideOverlap: true },
                                 markLine: {
@@ -2253,7 +2287,7 @@
                                 },
                                 data: data.map(d => ({
                                     name: d[dimField],
-                                    value: [d.出险率, d.案均赔款, d.变动成本率, d.签单保费],
+                                    value: [d.出险率, d.案均赔款, d.满期赔付率, d.签单保费],
                                     itemStyle: {
                                         color: getStatusColor(d.变动成本率),
                                         opacity: 0.7
@@ -2262,12 +2296,32 @@
                                 label: {
                                     show: true,
                                     position: 'inside',
-                                    formatter: params => `${params.data.name} ${params.data.value[2].toFixed(1)}%`,
+                                    formatter: params => {
+                                        const name = params.data.name;
+                                        const freqRate = params.data.value[0].toFixed(1);
+                                        const avgClaim = Math.round(params.data.value[1]);
+                                        const paidRate = params.data.value[2].toFixed(1);
+                                        return `{b|${name}} ${freqRate}% | ${avgClaim} | ${paidRate}%`;
+                                    },
                                     fontSize: 10,
-                                    fontWeight: 'bold',
-                                    color: 'white',
-                                    textBorderColor: 'black',
-                                    textBorderWidth: 2
+                                    color: params => {
+                                        const freqRate = params.data.value[0];
+                                        const avgClaim = params.data.value[1];
+                                        const freqThr = DATA.thresholds['四象限基准线']['出险率'];
+                                        const avgThr = DATA.thresholds['四象限基准线']['案均赔款'];
+                                        return (freqRate > freqThr || avgClaim > avgThr) ? '#d32f2f' : 'white';
+                                    },
+                                    textBorderColor: params => {
+                                        const freqRate = params.data.value[0];
+                                        const avgClaim = params.data.value[1];
+                                        const freqThr = DATA.thresholds['四象限基准线']['出险率'];
+                                        const avgThr = DATA.thresholds['四象限基准线']['案均赔款'];
+                                        return (freqRate > freqThr || avgClaim > avgThr) ? '#8b0000' : 'black';
+                                    },
+                                    textBorderWidth: 2,
+                                    rich: {
+                                        b: { fontWeight: 'bold' }
+                                    }
                                 },
                                 labelLayout: { hideOverlap: true },
                                 markLine: {
@@ -2300,8 +2354,9 @@
                                 const diff = expenseShare - premiumShare;
                                 return `${d.name}<br/>
                                        费用率: ${d.value[0].toFixed(1)}%<br/>
-                                       费用占比差异: ${diff.toFixed(1)}%<br/>
+                                       费用占比: ${expenseShare.toFixed(1)}%<br/>
                                        保费占比: ${premiumShare.toFixed(1)}%<br/>
+                                       费用占比差异: ${diff.toFixed(1)}%<br/>
                                        签单保费: ${Math.round(d.value[2]/10000)}万元`;
                             }
                         },
@@ -2350,12 +2405,28 @@
                             label: {
                                 show: true,
                                 position: 'inside',
-                                formatter: params => `${params.data.name} ${params.data.value[5].toFixed(1)}%`,
+                                formatter: params => {
+                                    const name = params.data.name;
+                                    const expenseRate = params.data.value[0].toFixed(1);
+                                    const expenseShare = params.data.value[3].toFixed(1);
+                                    const premiumShare = params.data.value[4].toFixed(1);
+                                    return `{b|${name}} ${expenseRate}% | ${expenseShare}% | ${premiumShare}%`;
+                                },
                                 fontSize: 10,
-                                fontWeight: 'bold',
-                                color: 'white',
-                                textBorderColor: 'black',
-                                textBorderWidth: 2
+                                color: params => {
+                                    const expenseShare = params.data.value[3];
+                                    const premiumShare = params.data.value[4];
+                                    return expenseShare > premiumShare ? '#d32f2f' : 'white';
+                                },
+                                textBorderColor: params => {
+                                    const expenseShare = params.data.value[3];
+                                    const premiumShare = params.data.value[4];
+                                    return expenseShare > premiumShare ? '#8b0000' : 'black';
+                                },
+                                textBorderWidth: 2,
+                                rich: {
+                                    b: { fontWeight: 'bold' }
+                                }
                             },
                             labelLayout: { hideOverlap: true },
                             markLine: {
