@@ -7,6 +7,146 @@
 
 ## 2025-12-15
 
+### 🚨 重大Bug修复：彻底移除硬编码数据，确保报告只显示用户上传的CSV数据
+**摘要**: 修复静态部署系统中存在的严重问题——HTML模板硬编码了703行示例数据，导致用户上传CSV后仍显示12个机构的硬编码数据而不是用户上传的实际数据。
+
+**问题背景**:
+- 用户反馈：上传天府机构的CSV后，生成的报告却包含乐山、宜宾、德阳等其他机构的数据
+- 根本原因：HTML模板（第593-1295行）硬编码了`const DATA = {...}` 对象，包含12个机构的完整示例数据
+- 数据注入失效：`static-report-generator.js` 注入的是 `window.reportData`，但模板使用的是硬编码的 `DATA` 对象
+- 严重性：违反了"所有数据不允许硬编码，一切数据都要来源于用户上传"的核心要求
+
+**主要变更**:
+1. **删除硬编码数据（文件瘦身26%）**
+   - 删除 `static/templates/四川分公司车险第49周经营分析模板.html` 第593-1295行（703行）的硬编码DATA对象
+   - 文件从 2,651 行减少到 1,952 行
+   - 硬编码数据包含12个机构：乐山、天府、宜宾、德阳、新都、本部、武侯、泸州、自贡、资阳、达州等
+
+2. **修改数据注入机制**
+   - 修改 `static-report-generator.js` 的 `generateHTML` 方法（第501-519行）
+   - 将注入的数据命名为 `const DATA` 而不是 `window.reportData`
+   - 添加占位符清理逻辑，确保模板中的占位声明被正确替换
+   - 添加控制台日志：`✅ DATA对象已从CSV数据注入，数据来源：用户上传`
+
+3. **实现完整的数据转换逻辑**
+   - 新增 `transformToTemplateData` 方法（第219-349行），将CSV原始数据转换为模板期望的DATA结构
+   - 支持中英文字段名自动识别（如 'third_level_organization' 和 '三级机构'）
+   - 按三级机构聚合数据
+   - 计算所有KPI指标：
+     - 满期赔付率 = 已报告赔款 / 满期保费
+     - 费用率 = 费用额 / 签单保费
+     - 变动成本率 = 满期赔付率 + 费用率
+     - 出险率 = 赔案件数 / 保单件数
+     - 案均赔款 = 已报告赔款 / 赔案件数
+     - 保费占比、赔款占比等
+   - 检测问题机构（成本超标、保费未达标、费用率高）
+   - 生成符合模板期望的完整数据结构：`{ summary, problems, dataByOrg, dataByCategory, dataByBusinessType }`
+
+**影响文件**:
+- `static/templates/四川分公司车险第49周经营分析模板.html` [UPDATED]
+  - 删除第593-1295行硬编码DATA对象（-703行）
+  - 添加占位符声明和注释（+4行）
+  - 净删除699行
+- `static/js/static-report-generator.js` [UPDATED]
+  - 修改 `processData` 方法，调用新的数据转换逻辑（第204-212行）
+  - 新增 `transformToTemplateData` 方法，完整的数据聚合和KPI计算（第219-349行，+131行）
+  - 修改 `generateHTML` 方法，正确注入DATA对象（第501-519行）
+
+**技术细节**:
+1. **硬编码数据的发现过程**:
+   ```bash
+   # 统计硬编码DATA对象的范围
+   const DATA 对象: 第593行 到 第1295行，总共 703 行
+   # 检查DATA对象的使用次数
+   grep -c "DATA\." 模板文件  # 输出: 28次
+   ```
+
+2. **数据结构对比**:
+   - **之前（硬编码）**: 固定的12个机构数据，无论用户上传什么CSV
+   - **之后（动态生成）**: 完全根据CSV内容生成，只显示CSV中包含的机构
+
+3. **字段映射灵活性**:
+   ```javascript
+   const fieldMap = {
+       org: ['third_level_organization', '三级机构'],
+       premium: ['signed_premium_yuan', '签单保费'],
+       // ... 支持多种字段名变体
+   };
+   ```
+
+**验证方式**:
+1. **代码验证**:
+   ```bash
+   # 确认硬编码数据已删除
+   grep -c "const DATA = {" static/templates/*.html
+   # 输出: 0（模板中没有硬编码DATA对象）
+
+   # 确认数据注入逻辑正确
+   grep "const DATA =" static/js/static-report-generator.js
+   # 输出: const DATA = ${JSON.stringify(data, null, 2)};
+   ```
+
+2. **浏览器验证**（需要用户测试）:
+   - 访问 https://alongor666.github.io/utoweKPI-py/
+   - 上传 `data/test_2025保单第49周变动成本明细表_天府.csv`
+   - 打开浏览器控制台，查看日志：
+     - `✅ DATA对象已从CSV数据注入，数据来源：用户上传`
+     - `📊 数据预览: { summary: {...}, dataByOrg: [{机构: "天府", ...}] }`
+   - **关键验证**：确认 `dataByOrg` 数组中**只包含天府机构**，不包含乐山、宜宾等其他机构
+   - 验证报告中所有图表和表格只显示天府的数据
+
+**相关提交**: 待提交
+
+---
+
+### 🐛 Bug修复：CSV空行解析错误
+**摘要**: 修复CSV文件末尾空行导致PapaParse解析失败的问题（此问题先于硬编码数据问题被发现）。
+
+**问题描述**:
+- 导入 `test_2025保单第49周变动成本明细表_天府.csv` 时出现错误
+- 错误信息: `CSV解析错误: Too few fields: expected 27 fields but parsed 1`
+- 原因: CSV文件末尾有额外的换行符，导致PapaParse认为存在一个只有1个字段的空行
+
+**主要变更**:
+1. **数据文件修复**
+   - 删除 `test_2025保单第49周变动成本明细表_天府.csv` 末尾的额外换行符
+   - 文件从 746,706 字节减少到 746,705 字节
+
+2. **代码优化**
+   - 在 `static-report-generator.js` 的 `parseCSV` 方法中添加 `skipEmptyLines: true` 配置
+   - 确保PapaParse自动跳过空行，提高CSV解析的容错性
+
+**影响文件**:
+- `data/test_2025保单第49周变动成本明细表_天府.csv` [UPDATED] - 删除末尾空行
+- `static/js/static-report-generator.js` [UPDATED] - 添加skipEmptyLines配置（第184行）
+
+**验证方式**:
+1. **命令行验证**:
+   ```bash
+   # 检查文件末尾是否有空行
+   python3 -c "
+   with open('data/test_2025保单第49周变动成本明细表_天府.csv', 'rb') as f:
+       lines = f.read().split(b'\n')
+       print(f'最后一行是否为空: {lines[-1] == b\"\"}')
+   "
+   # 输出: 最后一行是否为空: False
+   ```
+
+2. **浏览器验证**:
+   - 访问 https://alongor666.github.io/utoweKPI-py/
+   - 上传 `test_2025保单第49周变动成本明细表_天府.csv`
+   - 确认元数据提取成功，无解析错误
+   - 验证报告正常生成
+
+**技术细节**:
+- PapaParse在 `header: true` 模式下，期望每行都有与标题行相同数量的字段
+- 文件末尾的额外换行符会被split为一个空字符串，PapaParse将其视为只有1个空字段的行
+- `skipEmptyLines: true` 配置会自动忽略所有空行，包括文件末尾的空行
+
+**相关提交**: 待提交
+
+---
+
 ### 🚀 开发工具：快捷命令系统
 **摘要**: 创建开发快捷命令系统，简化日常开发工作流程。
 

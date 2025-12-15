@@ -181,6 +181,7 @@ class StaticReportGenerator {
             Papa.parse(file, {
                 header: true,
                 encoding: 'UTF-8',
+                skipEmptyLines: true,  // 跳过空行，避免解析错误
                 complete: (results) => {
                     if (results.errors.length > 0) {
                         reject(new Error('CSV解析错误: ' + results.errors[0].message));
@@ -201,21 +202,149 @@ class StaticReportGenerator {
      * @returns {Object} 处理后的数据对象
      */
     processData(csvData) {
-        // 数据清洗和映射
-        const mappedData = this.mapBusinessTypes(csvData);
-        
-        // KPI计算
-        const kpiData = this.calculateKPIs(mappedData);
-        
-        // 数据聚合
-        const aggregatedData = this.aggregateData(kpiData);
-        
+        console.log('开始处理CSV数据，数据行数:', csvData.length);
+
+        // 将CSV数据转换为模板期望的DATA结构
+        const dataStructure = this.transformToTemplateData(csvData);
+
+        console.log('数据转换完成:', dataStructure);
+        return dataStructure;
+    }
+
+    /**
+     * 将CSV原始数据转换为模板期望的DATA结构
+     * @param {Array} csvData - 原始CSV数据
+     * @returns {Object} 模板期望的数据结构
+     */
+    transformToTemplateData(csvData) {
+        // 字段映射（支持中英文字段名）
+        const fieldMap = {
+            org: ['third_level_organization', '三级机构'],
+            premium: ['signed_premium_yuan', '签单保费'],
+            maturedPremium: ['matured_premium_yuan', '满期保费'],
+            claim: ['reported_claim_payment_yuan', '已报告赔款'],
+            expense: ['expense_amount_yuan', '费用额'],
+            policyCount: ['policy_count', '保单件数'],
+            claimCount: ['claim_case_count', '赔案件数']
+        };
+
+        // 获取字段值的辅助函数
+        const getField = (row, fieldNames) => {
+            for (const name of fieldNames) {
+                if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+                    return parseFloat(row[name]) || 0;
+                }
+            }
+            return 0;
+        };
+
+        // 按三级机构聚合数据
+        const orgData = {};
+        csvData.forEach(row => {
+            let orgName = null;
+            for (const field of fieldMap.org) {
+                if (row[field]) {
+                    orgName = row[field];
+                    break;
+                }
+            }
+
+            if (!orgName) return;
+
+            if (!orgData[orgName]) {
+                orgData[orgName] = {
+                    签单保费: 0,
+                    满期保费: 0,
+                    已报告赔款: 0,
+                    费用额: 0,
+                    保单件数: 0,
+                    赔案件数: 0
+                };
+            }
+
+            orgData[orgName].签单保费 += getField(row, fieldMap.premium);
+            orgData[orgName].满期保费 += getField(row, fieldMap.maturedPremium);
+            orgData[orgName].已报告赔款 += getField(row, fieldMap.claim);
+            orgData[orgName].费用额 += getField(row, fieldMap.expense);
+            orgData[orgName].保单件数 += getField(row, fieldMap.policyCount);
+            orgData[orgName].赔案件数 += getField(row, fieldMap.claimCount);
+        });
+
+        // 计算全局汇总
+        let totalPremium = 0;
+        let totalClaim = 0;
+        Object.values(orgData).forEach(org => {
+            totalPremium += org.签单保费;
+            totalClaim += org.已报告赔款;
+        });
+
+        // 转换为数组并计算KPI
+        const dataByOrg = Object.entries(orgData).map(([orgName, data]) => {
+            const 满期赔付率 = data.满期保费 > 0 ? (data.已报告赔款 / data.满期保费) * 100 : 0;
+            const 费用率 = data.签单保费 > 0 ? (data.费用额 / data.签单保费) * 100 : 0;
+            const 变动成本率 = 满期赔付率 + 费用率;
+            const 出险率 = data.保单件数 > 0 ? (data.赔案件数 / data.保单件数) * 100 : 0;
+            const 案均赔款 = data.赔案件数 > 0 ? data.已报告赔款 / data.赔案件数 : 0;
+            const 保费占比 = totalPremium > 0 ? (data.签单保费 / totalPremium) * 100 : 0;
+            const 已报告赔款占比 = totalClaim > 0 ? (data.已报告赔款 / totalClaim) * 100 : 0;
+
+            return {
+                机构: orgName,
+                签单保费: data.签单保费,
+                满期保费: data.满期保费,
+                已报告赔款: data.已报告赔款,
+                费用额: data.费用额,
+                保单件数: data.保单件数,
+                赔案件数: data.赔案件数,
+                满期赔付率: 满期赔付率,
+                费用率: 费用率,
+                变动成本率: 变动成本率,
+                出险率: 出险率,
+                案均赔款: 案均赔款,
+                保费占比: 保费占比,
+                已报告赔款占比: 已报告赔款占比,
+                年计划达成率: 100  // 临时值，需要与年度计划数据关联
+            };
+        });
+
+        // 按签单保费降序排序
+        dataByOrg.sort((a, b) => b.签单保费 - a.签单保费);
+
+        // 计算全局KPI
+        const globalMaturedPremium = dataByOrg.reduce((sum, org) => sum + org.满期保费, 0);
+        const global满期赔付率 = globalMaturedPremium > 0 ? (totalClaim / globalMaturedPremium) * 100 : 0;
+        const totalExpense = dataByOrg.reduce((sum, org) => sum + org.费用额, 0);
+        const global费用率 = totalPremium > 0 ? (totalExpense / totalPremium) * 100 : 0;
+        const global变动成本率 = global满期赔付率 + global费用率;
+
+        // 检测问题机构
+        const problems = [];
+        dataByOrg.forEach(org => {
+            if (org.变动成本率 > 93) {
+                problems.push(`${org.机构}(成本超标)`);
+            }
+            if (org.年计划达成率 < 95) {
+                problems.push(`${org.机构}(保费未达标)`);
+            }
+            if (org.费用率 > 18) {
+                problems.push(`${org.机构}(费用率高)`);
+            }
+        });
+
+        // 返回模板期望的数据结构
         return {
-            original: csvData,
-            mapped: mappedData,
-            kpis: kpiData,
-            aggregated: aggregatedData,
-            summary: this.generateSummary(aggregatedData)
+            summary: {
+                签单保费: totalPremium,
+                满期赔付率: global满期赔付率,
+                费用率: global费用率,
+                变动成本率: global变动成本率,
+                已报告赔款: totalClaim
+            },
+            problems: problems.slice(0, 5),  // 只显示前5个问题
+            dataByOrg: dataByOrg,
+            // 临时使用相同的数据填充其他维度
+            dataByCategory: dataByOrg,
+            dataByBusinessType: dataByOrg
         };
     }
 
@@ -498,16 +627,23 @@ class StaticReportGenerator {
         });
         
         // 注入数据到JavaScript变量
+        // 替换模板中的占位DATA对象，确保使用CSV上传的实际数据
         const dataScript = `
         <script>
-            window.reportData = ${JSON.stringify(data, null, 2)};
+            // 从CSV上传生成的实际数据，替换模板中的占位符
+            const DATA = ${JSON.stringify(data, null, 2)};
+            window.reportData = DATA;  // 兼容性保留
             window.dynamicInfo = ${JSON.stringify(dynamicInfo, null, 2)};
+            console.log('✅ DATA对象已从CSV数据注入，数据来源：用户上传');
+            console.log('📊 数据预览:', DATA);
             // 触发图表渲染
             if (typeof renderCharts === 'function') {
                 setTimeout(renderCharts, 100);
             }
         </script>`;
-        
+
+        // 替换模板中的占位DATA声明
+        html = html.replace(/let DATA = \{\}; \/\/ 占位符.*?\n/, '');
         html = html.replace('</body>', dataScript + '</body>');
         
         return html;
