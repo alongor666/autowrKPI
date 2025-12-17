@@ -7,9 +7,16 @@
     "js/dashboard.js",
     "css/dashboard.css"
   ],
-  "tags": ["可视化", "ECharts", "交互设计", "SPA"],
-  "description": "基于 SPA 架构的交互式数据分析界面，支持多维下钻、图表联动与实时筛选",
-  "updated_at": "2025-12-16",
+  "tags": ["可视化", "ECharts", "交互设计", "SPA", "图表样式规范"],
+  "description": "基于 SPA 架构的交互式数据分析界面，支持多维下钻、图表联动与实时筛选。实施统一的图表样式规范（无网格线、粗体文字、实线预警线、水平X轴标签）",
+  "updated_at": "2025-12-17",
   "dependencies": ["F001", "F003", "F004"],
-  "related_decisions": ["D001_ECharts-CDN加载优化.md"]
+  "related_decisions": ["D001_ECharts-CDN加载优化.md"],
+  "recent_updates": [
+    {
+      "date": "2025-12-17",
+      "type": "enhancement",
+      "description": "实施统一的图表样式规范：去除网格线、全局粗体文字、实线预警线、水平X轴标签、坐标轴名称优化"
+    }
+  ]
 }

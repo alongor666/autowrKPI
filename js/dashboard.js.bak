@@ -45,7 +45,6 @@ const Dashboard = {
         this.initFilters();
         this.initDrillModal();
         this.initYearSelector();
-        this.renderMetadata();  // 渲染元数据预览卡片
         this.renderKPI();
         this.renderChart('overview');
 
@@ -163,7 +162,7 @@ const Dashboard = {
         });
 
         return { values, sizes };
-    },
+    },,
 
 // 限制柱状图极端值的函数
     normalizeBarHeights(values) {
@@ -451,84 +450,6 @@ const Dashboard = {
         this.renderChart(tab);
     },
 
-    // 渲染元数据预览卡片
-    renderMetadata() {
-        const info = this.data.dynamicInfo;
-        if (!info) {
-            console.warn('元数据信息不存在，跳过渲染');
-            return;
-        }
-
-        console.log('渲染元数据预览卡片:', info);
-
-        // 更新各个字段
-        const metaYear = document.getElementById('meta-year');
-        const metaWeek = document.getElementById('meta-week');
-        const metaUpdateDate = document.getElementById('meta-update-date');
-        const metaMode = document.getElementById('meta-mode');
-        const metaOrgCount = document.getElementById('meta-org-count');
-        const metaOrgList = document.getElementById('meta-org-list');
-        const metaOrgListContainer = document.getElementById('meta-org-list-container');
-        const metadataCard = document.getElementById('metadata-card');
-
-        if (metaYear) metaYear.textContent = info.year || '-';
-        if (metaWeek) metaWeek.textContent = `第${info.week}周`;
-        if (metaUpdateDate) metaUpdateDate.textContent = info.updateDate || '未提供';
-
-        // 分析模式徽章
-        if (metaMode) {
-            if (info.analysisMode === 'single') {
-                metaMode.textContent = '单机构分析';
-                metaMode.className = 'metadata-badge badge-single';
-            } else {
-                metaMode.textContent = '多机构对比';
-                metaMode.className = 'metadata-badge badge-multi';
-            }
-        }
-
-        // 机构数量
-        if (metaOrgCount) {
-            metaOrgCount.textContent = `${info.organizationCount} 个`;
-        }
-
-        // 机构列表（仅在机构数量 <= 10 时显示）
-        if (info.organizations && info.organizations.length > 0) {
-            if (info.organizations.length <= 10) {
-                if (metaOrgList) {
-                    metaOrgList.textContent = info.organizations.join('、');
-                }
-                if (metaOrgListContainer) {
-                    metaOrgListContainer.style.display = 'flex';
-                }
-            } else {
-                if (metaOrgListContainer) {
-                    metaOrgListContainer.style.display = 'none';
-                }
-            }
-        }
-
-        // 更新页面标题
-        const mainTitle = document.getElementById('mainTitle');
-        if (mainTitle && info.title) {
-            mainTitle.textContent = info.title;
-        }
-
-        // 更新报告日期
-        const reportDate = document.getElementById('reportDate');
-        if (reportDate) {
-            if (info.updateDate) {
-                reportDate.textContent = `数据截止日期：${info.updateDate}`;
-            } else {
-                reportDate.textContent = `保单年度：${info.year} | 周次：第${info.week}周`;
-            }
-        }
-
-        // 显示元数据卡片
-        if (metadataCard) {
-            metadataCard.style.display = 'flex';
-        }
-    },
-
     renderKPI() {
         const summary = this.data.summary || {};
         const formatVal = (val) => val !== undefined && val !== null ? val.toFixed(1) : '--';
@@ -793,7 +714,7 @@ const Dashboard = {
                                 name: '危险线',
                                 lineStyle: {
                                     color: '#c00000',
-                                    type: 'solid',
+                                    type: 'dashed',
                                     width: 3,
                                     opacity: 0.8
                                 },
@@ -810,7 +731,7 @@ const Dashboard = {
                                 name: '警告线',
                                 lineStyle: {
                                     color: '#ffc000',
-                                    type: 'solid',
+                                    type: 'dashed',
                                     width: 3,
                                     opacity: 0.8
                                 },
@@ -867,7 +788,7 @@ const Dashboard = {
                     markLine: {
                         silent: false,
                         symbol: 'none',
-                        lineStyle: { type: 'solid', width: 3, opacity: 0.8 },
+                        lineStyle: { type: 'dashed', width: 3, opacity: 0.8 },
                         data: [
                             {
                                 xAxis: thresholds['满期赔付率'] || 75,
@@ -963,7 +884,7 @@ const Dashboard = {
                         markLine: {
                             silent: false,
                             symbol: 'none',
-                            lineStyle: { type: 'solid', width: 3, opacity: 0.8, color: '#c00000' },
+                            lineStyle: { type: 'dashed', width: 3, opacity: 0.8, color: '#c00000' },
                             data: [{
                                 xAxis: 75,
                                 name: '赔付率阈值',
@@ -1052,7 +973,7 @@ const Dashboard = {
                                 name: '危险线',
                                 lineStyle: {
                                     color: '#c00000',
-                                    type: 'solid',
+                                    type: 'dashed',
                                     width: 3,
                                     opacity: 0.8
                                 },
@@ -1069,7 +990,7 @@ const Dashboard = {
                                 name: '警告线',
                                 lineStyle: {
                                     color: '#ffc000',
-                                    type: 'solid',
+                                    type: 'dashed',
                                     width: 3,
                                     opacity: 0.8
                                 },

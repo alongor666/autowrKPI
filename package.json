@@ -1,0 +1,32 @@
+{
+  "name": "utowe-kpi-dashboard",
+  "version": "1.0.0",
+  "description": "多维度数据分析仪表盘 - 基于代码自动生成的文档系统",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8888",
+    "update-docs": "node tools/update-docs.js",
+    "validate-docs": "node tools/update-docs.js && echo '✅ 文档验证通过'",
+    "commit-with-docs": "git add . && git commit -m \"📚 更新代码与文档\" -m \"- 更新了项目代码\" -m \"- 自动更新了相关文档\" && git push"
+  },
+  "keywords": [
+    "dashboard",
+    "data-analysis",
+    "visualization",
+    "auto-documentation",
+    "code-analysis"
+  ],
+  "author": "utoweKPI Team",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alongor666/utoweKPI-py.git"
+  },
+  "docs": {
+    "auto-generated": true,
+    "source": "code-analysis",
+    "location": ".trae/documents/generated/"
+  }
+}

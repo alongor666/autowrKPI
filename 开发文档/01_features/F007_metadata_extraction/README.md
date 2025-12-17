@@ -19,7 +19,7 @@
 
 ### 1. 字段映射机制
 
-**字段映射表**（static/js/static-report-generator.js:363-369）：
+**字段映射表**（js/data.worker.js:383-412）：
 ```javascript
 const fieldMapping = {
     year: ['保单年度', 'policy_start_year', '年度', '年份'],
@@ -37,7 +37,7 @@ const fieldMapping = {
 
 ### 2. 分析模式识别
 
-**识别算法**（static/js/static-report-generator.js:406-432）：
+**识别算法**（js/data.worker.js:430-442）：
 1. 提取CSV中所有三级机构名称，去重后统计数量
 2. 如果 `organizationCount === 1`：单机构分析模式
 3. 如果 `organizationCount > 1`：多机构对比模式
@@ -48,7 +48,7 @@ const fieldMapping = {
 
 ### 3. 元数据预览
 
-**UI组件**（static/index.html:218-222）：
+**UI组件**（index.html:113-139, dashboard.js:454-530）：
 - 文件上传后即时显示元数据卡片
 - 包含：保单年度、周次、更新日期、分析模式、机构信息
 - 使用彩色徽章区分单机构（绿色）和多机构（蓝色）
@@ -137,14 +137,28 @@ CSV数据已缓存，行数: 1523
 
 ## 相关文件
 
-- 核心实现：`static/js/static-report-generator.js:346-455`
-- UI组件：`static/index.html:151-318`
-- 测试数据：`data/test_2025保单第50周变动成本率明细表_四川分公司.csv`
+- 核心实现：`js/data.worker.js:375-475` (extractDynamicInfo函数)
+- UI组件：`index.html:113-139` (元数据卡片HTML)
+- 渲染逻辑：`js/dashboard.js:454-530` (renderMetadata方法)
+- 样式文件：`css/dashboard.css:801-882` (元数据卡片样式)
+- 测试数据：`开发文档/test_2025保单第49周变动成本明细表_天府.csv` (单机构)
+- 测试数据：`开发文档/test_2025保单第50周变动成本率明细表_四川分公司.csv` (多机构)
 
 ## 更新日志
 
+### 2025-12-17
+- ✅ **完整实现所有功能**
+- ✅ 添加更新日期字段提取（snapshot_date等）
+- ✅ 添加二级机构字段提取（second_level_organization等）
+- ✅ 实现元数据预览UI卡片（6项信息展示）
+- ✅ 添加控制台调试日志（年度、周次、机构列表等）
+- ✅ 添加字段格式验证（日期格式检查）
+- ✅ 完善字段映射表（新增"年份"、"周"等候选字段）
+- ✅ 实现renderMetadata渲染方法
+- ✅ 添加响应式CSS样式
+- ✅ 更新文档路径引用
+
 ### 2025-12-15
-- 实现智能字段映射功能
+- 实现智能字段映射功能（初版）
 - 添加分析模式自动识别
-- 创建元数据预览UI组件
-- 添加控制台调试日志
+- 创建元数据预览UI组件（文档设计）

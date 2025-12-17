@@ -110,6 +110,34 @@
                 <div class="header-info" id="reportDate">数据截止日期：--</div>
             </div>
 
+        <!-- 元数据预览卡片 -->
+        <div id="metadata-card" class="metadata-preview" style="display: none;">
+            <div class="metadata-item">
+                <span class="metadata-label">📅 保单年度</span>
+                <span class="metadata-value" id="meta-year">-</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">📊 周次</span>
+                <span class="metadata-value" id="meta-week">-</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">🕐 更新日期</span>
+                <span class="metadata-value" id="meta-update-date">-</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">📍 分析模式</span>
+                <span class="metadata-badge" id="meta-mode">-</span>
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">🏢 机构数量</span>
+                <span class="metadata-value" id="meta-org-count">-</span>
+            </div>
+            <div class="metadata-item" id="meta-org-list-container" style="display: none;">
+                <span class="metadata-label">📋 机构列表</span>
+                <span class="metadata-value-small" id="meta-org-list">-</span>
+            </div>
+        </div>
+
         <!-- 全局筛选控制区 -->
         <div class="filter-control-bar">
             <div class="filter-section">
@@ -251,7 +279,7 @@
                     <button class="dimension-btn" onclick="Dashboard.switchDimension('loss', 'businessType')">业务类型</button>
                 </div>
                 <div class="sub-tabs">
-                    <button class="sub-tab active" onclick="Dashboard.switchSubTab('loss', 'bubble')">赔付VS占比</button>
+                    <button class="sub-tab active" onclick="Dashboard.switchSubTab('loss', 'bubble')">赔付率VS占比</button>
                     <button class="sub-tab" onclick="Dashboard.switchSubTab('loss', 'quadrant')">频度VS额度</button>
                 </div>
                 <div class="chart-container"><div id="chart-loss" class="chart"></div></div>

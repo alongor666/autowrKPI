@@ -373,47 +373,105 @@ function detectProblems(dataByOrg) {
 }
 
 function extractDynamicInfo(csvData) {
-    if (!csvData || csvData.length === 0) return {};
+    if (!csvData || csvData.length === 0) {
+        console.warn('[Worker] extractDynamicInfo: 空数据，返回默认值');
+        return {};
+    }
+
     const firstRow = csvData[0];
-    
-    // Simple extraction logic
+
+    // 智能字段查找函数
     const findVal = (keys) => {
         for (const k of keys) {
-            if (firstRow[k]) return firstRow[k];
+            if (firstRow[k] !== undefined && firstRow[k] !== null && firstRow[k] !== '') {
+                return firstRow[k];
+            }
         }
         return null;
     };
 
-    let year = findVal(['保单年度', 'policy_start_year', '年度']) || '2025';
-    let week = findVal(['周次', 'week_number']) || '未知';
+    // 提取保单年度
+    let year = findVal(['保单年度', 'policy_start_year', '年度', '年份']) || '2025';
+    year = String(year).trim();
+
+    // 提取周次
+    let week = findVal(['周次', 'week_number', '周']) || '未知';
     week = String(week).replace(/第|周/g, '').trim();
 
-    // Org count
-    const orgs = new Set();
-    const orgKeys = ['机构', '三级机构', 'third_level_organization'];
-    let orgKey = orgKeys.find(k => firstRow[k]);
-    
-    if (orgKey) {
-        for (let i = 0; i < csvData.length; i++) {
-            if (csvData[i][orgKey]) orgs.add(csvData[i][orgKey]);
+    // 提取更新日期（新增）
+    let updateDate = findVal(['snapshot_date', '快照日期', '更新日期', '统计日期']) || null;
+    if (updateDate) {
+        updateDate = String(updateDate).trim();
+        // 简单验证日期格式（YYYY-MM-DD）
+        if (!/^\d{4}-\d{2}-\d{2}/.test(updateDate)) {
+            console.warn('[Worker] 更新日期格式不符合YYYY-MM-DD:', updateDate);
         }
     }
-    
-    const orgList = Array.from(orgs);
-    const mode = orgList.length > 1 ? 'multi' : 'single';
-    let company = '四川分公司';
-    if (mode === 'single' && orgList.length > 0) company = orgList[0];
 
-    return {
-        year, week, 
+    // 提取二级机构（新增）
+    let secondOrg = findVal(['二级机构', 'second_level_organization']) || null;
+
+    // 统计三级机构
+    const orgs = new Set();
+    const orgKeys = ['机构', '三级机构', 'third_level_organization'];
+    let orgKey = orgKeys.find(k => firstRow[k] !== undefined);
+
+    if (orgKey) {
+        for (let i = 0; i < csvData.length; i++) {
+            const val = csvData[i][orgKey];
+            if (val !== undefined && val !== null && val !== '') {
+                orgs.add(String(val).trim());
+            }
+        }
+    } else {
+        console.warn('[Worker] 未找到机构字段，尝试过的字段:', orgKeys);
+    }
+
+    const orgList = Array.from(orgs).sort();
+    const mode = orgList.length > 1 ? 'multi' : 'single';
+
+    // 确定公司名称（优先使用二级机构字段）
+    let company = secondOrg || '四川分公司';
+    if (mode === 'single' && orgList.length > 0) {
+        company = orgList[0];
+    }
+
+    // 生成标题
+    const title = mode === 'multi'
+        ? `${company}车险第${week}周经营分析（多机构对比）`
+        : `${company}车险第${week}周经营分析`;
+
+    const result = {
+        year,
+        week,
+        updateDate,
+        secondOrg,
         organizationCount: orgList.length,
         organizations: orgList,
         analysisMode: mode,
-        title: `${company}车险经营分析（保单年度${year}·第${week}周）`,
+        title,
         company,
-        // Extract dimension values for UI filters
         dimensionValues: extractDimensionValues(csvData)
     };
+
+    // 调试日志输出
+    console.log('📊 [Worker] 提取的元数据:', {
+        year: result.year,
+        week: result.week,
+        updateDate: result.updateDate,
+        company: result.company,
+        analysisMode: result.analysisMode,
+        organizationCount: result.organizationCount
+    });
+    console.log(`📍 [Worker] 分析模式: ${mode === 'single' ? '单机构分析' : '多机构对比'}`);
+    console.log(`🏢 [Worker] 机构数量: ${orgList.length}`);
+    if (orgList.length <= 10) {
+        console.log(`📋 [Worker] 机构列表:`, orgList);
+    } else {
+        console.log(`📋 [Worker] 机构列表(前10个):`, orgList.slice(0, 10), '...');
+    }
+
+    return result;
 }
 
 function extractDimensionValues(csvData) {
