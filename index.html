@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经营分析可视化系统</title>
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/dashboard.css">
+    <style>
+        /* 覆盖或补充一些特定于SPA的样式 */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        
+        /* Upload Container Styles (from previous index.html) */
+        .upload-container-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 2000;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8ebef 100%);
+        }
+
+        .upload-box {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            padding: 48px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 40px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+            background: rgba(255,255,255,0.5);
+        }
+
+        .upload-area:hover {
+            border-color: #a02724;
+            background: rgba(160, 39, 36, 0.05);
+        }
+
+        .btn-upload {
+            background: #a02724;
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            margin-top: 24px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+        }
+
+        .btn-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(160, 39, 36, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <!-- 上传界面 -->
+    <div class="upload-container-wrapper" id="uploadContainer">
+        <div class="upload-box">
+            <h1 style="color:#a02724;margin-bottom:8px;">经营分析可视化系统</h1>
+            <p style="color:#666;font-size:14px;">支持 CSV / Excel / JSON 数据导入</p>
+            
+            <form id="uploadForm">
+                <div class="upload-area" id="dropZone" style="position:relative;">
+                    <span style="font-size:48px;display:block;margin-bottom:16px;">📂</span>
+                    <span id="uploadText">点击或拖拽文件至此</span>
+                    <input type="file" name="file" id="fileInput" accept=".csv, .xlsx, .xls, .json" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:1;" required>
+                </div>
+
+                <div id="fileInfo" style="margin-top:16px;font-size:14px;color:#333;display:none;"></div>
+                <div id="errorMsg" style="color:#e74c3c;margin-top:16px;font-size:14px;display:none;"></div>
+
+                <button type="submit" class="btn-upload" id="submitBtn" style="display:none;position:relative;z-index:10;">开始分析</button>
+                
+                <div id="loading" style="display:none;margin-top:20px;color:#666;">
+                    正在处理数据...
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 仪表盘容器 (初始隐藏) -->
+    <div id="dashboardContainer" style="display:none;">
+        <!-- PPT页面主体框架 -->
+        <div class="ppt-container">
+            <div class="header">
+                <h1 id="mainTitle">四川分公司车险经营分析</h1>
+                <div class="header-info" id="reportDate">数据截止日期：--</div>
+            </div>
+
+        <!-- 全局筛选控制区 -->
+        <div class="filter-control-bar">
+            <div class="filter-section">
+                <span class="filter-label">年度</span>
+                <select id="filter-year" class="filter-select">
+                    <option value="">全部</option>
+                </select>
+            </div>
+
+            <div class="filter-section">
+                <span class="filter-label">周次范围</span>
+                <input type="number" id="filter-week-start" class="filter-input" placeholder="起始" min="1" max="52" value="1" style="width: 60px;">
+                <span>-</span>
+                <input type="number" id="filter-week-end" class="filter-input" placeholder="结束" min="1" max="52" value="52" style="width: 60px;">
+            </div>
+
+            <div class="filter-section">
+                <button id="btn-add-drill" class="filter-btn filter-btn-secondary">+ 添加下钻</button>
+            </div>
+
+            <div class="drill-condition-tags" id="drill-condition-tags"></div>
+
+            <div class="filter-section" style="margin-left: auto;">
+                <button id="btn-apply-filters" class="filter-btn filter-btn-primary">应用筛选</button>
+                <button id="btn-reset-filters" class="filter-btn filter-btn-secondary">重置</button>
+            </div>
+        </div>
+
+        <!-- 下钻筛选弹窗 -->
+        <div id="drill-modal" class="drill-modal">
+            <div class="drill-modal-content">
+                <div class="drill-modal-header">
+                    <div class="drill-modal-title">选择下钻维度和值</div>
+                    <div class="drill-modal-close">&times;</div>
+                </div>
+                <div class="drill-modal-body">
+                    <div class="drill-dimension-selector">
+                        <label class="filter-label">选择维度</label>
+                        <select id="drill-dimension-select" class="filter-select" style="width: 100%; margin-top: 8px;">
+                            <option value="">请选择维度</option>
+                        </select>
+                    </div>
+                    <div id="drill-value-section" style="display: none;">
+                        <div class="drill-actions">
+                            <button class="filter-btn filter-btn-secondary" onclick="Dashboard.toggleAllValues(true)" style="font-size: 12px; padding: 6px 12px;">全选</button>
+                            <button class="filter-btn filter-btn-secondary" onclick="Dashboard.toggleAllValues(false)" style="font-size: 12px; padding: 6px 12px;">清空</button>
+                        </div>
+                        <div class="drill-value-list" id="drill-value-list"></div>
+                    </div>
+                </div>
+                <div class="drill-modal-footer">
+                    <button class="filter-btn filter-btn-secondary" onclick="Dashboard.closeDrillModal()">取消</button>
+                    <button class="filter-btn filter-btn-primary" onclick="Dashboard.confirmDrillSelection()">确定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 悬浮上传按钮 -->
+        <div class="float-btn" onclick="location.reload()" title="导入新数据">
+            <svg viewBox="0 0 24 24">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+            </svg>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="overview">经营概览</div>
+            <div class="tab" data-tab="premium">保费进度</div>
+            <div class="tab" data-tab="cost">变动成本</div>
+            <div class="tab" data-tab="loss">损失暴露</div>
+            <div class="tab" data-tab="expense">费用支出</div>
+        </div>
+
+        <div class="content">
+            <div id="error-banner" class="error-banner"></div>
+        
+            <!-- 经营概览 -->
+            <div id="tab-overview" class="tab-content active">
+                <div class="dimension-switch">
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('overview', 'kpi')">分公司KPI</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'org')">三级机构</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'category')">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'businessType')">业务类型</button>
+                </div>
+
+                <div id="overview-kpi-content">
+                    <!-- KPI重点提示标题 -->
+                    <div id="kpi-alert-title" class="kpi-alert-title" style="display: none;"></div>
+
+                    <div class="metric-cards">
+                        <div class="metric-card"><div class="metric-label">保费时间进度达成率</div><div class="metric-value" id="metric-progress">--<span class="metric-unit">%</span></div></div>
+                        <div class="metric-card"><div class="metric-label">变动成本率</div><div class="metric-value" id="metric-cost-rate">--<span class="metric-unit">%</span></div></div>
+                        <div class="metric-card"><div class="metric-label">满期赔付率</div><div class="metric-value" id="metric-claim-rate">--<span class="metric-unit">%</span></div></div>
+                        <div class="metric-card"><div class="metric-label">费用率</div><div class="metric-value" id="metric-expense-rate">--<span class="metric-unit">%</span></div></div>
+                        <div class="metric-card"><div class="metric-label">签单保费</div><div class="metric-value" id="metric-premium">--<span class="metric-unit">万元</span></div></div>
+                        <div class="metric-card"><div class="metric-label">边际贡献额</div><div class="metric-value" id="metric-margin">--<span class="metric-unit">万元</span></div></div>
+                        <div class="metric-card"><div class="metric-label">已报告赔款</div><div class="metric-value" id="metric-claim">--<span class="metric-unit">万元</span></div></div>
+                        <div class="metric-card"><div class="metric-label">费用金额</div><div class="metric-value" id="metric-expense">--<span class="metric-unit">万元</span></div></div>
+                    </div>
+                </div>
+
+                <div id="overview-chart-content" style="display:none;">
+                    <!-- 动态标题 -->
+                    <div id="overview-dynamic-title" class="dynamic-title" style="display: none;"></div>
+
+                    <!-- 图表容器 -->
+                    <div class="chart-container"><div id="chart-overview" class="chart chart-standard"></div></div>
+
+                    <!-- 正文分析 -->
+                    <div id="overview-analysis-content" class="analysis-content" style="display: none;">
+                        <ul id="overview-analysis-list" class="analysis-list"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 保费进度 -->
+            <div id="tab-premium" class="tab-content">
+                <div class="dimension-switch">
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('premium', 'category')">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('premium', 'businessType')">业务类型</button>
+                </div>
+                <div class="chart-container"><div id="chart-premium" class="chart"></div></div>
+            </div>
+
+            <!-- 变动成本 -->
+            <div id="tab-cost" class="tab-content">
+                <div class="dimension-switch">
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('cost', 'org')">三级机构</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('cost', 'category')">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('cost', 'businessType')">业务类型</button>
+                </div>
+                <div class="chart-container"><div id="chart-cost" class="chart"></div></div>
+            </div>
+
+            <!-- 损失暴露 -->
+            <div id="tab-loss" class="tab-content">
+                <div class="dimension-switch">
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('loss', 'org')">三级机构</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('loss', 'category')">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('loss', 'businessType')">业务类型</button>
+                </div>
+                <div class="sub-tabs">
+                    <button class="sub-tab active" onclick="Dashboard.switchSubTab('loss', 'bubble')">赔付VS占比</button>
+                    <button class="sub-tab" onclick="Dashboard.switchSubTab('loss', 'quadrant')">频度VS额度</button>
+                </div>
+                <div class="chart-container"><div id="chart-loss" class="chart"></div></div>
+            </div>
+
+            <!-- 费用支出 -->
+            <div id="tab-expense" class="tab-content">
+                <div class="dimension-switch">
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('expense', 'org')">三级机构</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('expense', 'category')">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('expense', 'businessType')">业务类型</button>
+                </div>
+                <div class="chart-container"><div id="chart-expense" class="chart"></div></div>
+            </div>
+        </div>
+        </div> <!-- 结束 ppt-container -->
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    
+    <script src="js/static-report-generator.js"></script>
+    <script src="js/dashboard.js"></script>
+    
+    <script>
+        // Main Entry Point
+        const fileInput = document.getElementById('fileInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const dropZone = document.getElementById('dropZone');
+        const uploadForm = document.getElementById('uploadForm');
+        const loading = document.getElementById('loading');
+        const errorMsg = document.getElementById('errorMsg');
+        const fileInfo = document.getElementById('fileInfo');
+
+        let appController = null;
+        try {
+            appController = new StaticReportGenerator(); // We can rename this class later
+        } catch (e) {
+            console.error('Failed to init controller:', e);
+            errorMsg.textContent = '系统初始化失败，请刷新页面';
+            errorMsg.style.display = 'block';
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileInfo.textContent = `已选择: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+                fileInfo.style.display = 'block';
+                document.getElementById('uploadText').textContent = file.name;
+                submitBtn.style.display = 'block';
+                errorMsg.style.display = 'none';
+                // 禁用 fileInput 的点击事件，防止阻挡提交按钮
+                fileInput.style.pointerEvents = 'none';
+            }
+        });
+
+        // Drag & Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#a02724';
+            dropZone.style.background = 'rgba(160, 39, 36, 0.05)';
+        });
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ccc';
+            dropZone.style.background = 'rgba(255,255,255,0.5)';
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ccc';
+            dropZone.style.background = 'rgba(255,255,255,0.5)';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            loading.style.display = 'block';
+            submitBtn.style.display = 'none';
+            errorMsg.style.display = 'none';
+
+            try {
+                // Load Data via Controller
+                const data = await appController.loadData(file, (msg) => {
+                    loading.textContent = msg;
+                });
+
+                // Initialize Dashboard
+                Dashboard.init(data, appController.worker);
+
+            } catch (err) {
+                console.error(err);
+                errorMsg.textContent = '处理失败: ' + err.message;
+                errorMsg.style.display = 'block';
+                loading.style.display = 'none';
+                submitBtn.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

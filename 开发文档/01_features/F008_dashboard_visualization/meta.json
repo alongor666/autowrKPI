@@ -1,0 +1,15 @@
+{
+  "id": "F008",
+  "name": "交互式数据可视化仪表盘",
+  "status": "implemented",
+  "core_files": [
+    "index.html",
+    "js/dashboard.js",
+    "css/dashboard.css"
+  ],
+  "tags": ["可视化", "ECharts", "交互设计", "SPA"],
+  "description": "基于 SPA 架构的交互式数据分析界面，支持多维下钻、图表联动与实时筛选",
+  "updated_at": "2025-12-16",
+  "dependencies": ["F001", "F003", "F004"],
+  "related_decisions": ["D001_ECharts-CDN加载优化.md"]
+}

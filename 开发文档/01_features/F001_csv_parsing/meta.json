@@ -1,14 +1,15 @@
 {
   "id": "F001",
-  "name": "CSV数据解析与处理",
+  "name": "多源数据摄入与解析",
   "status": "implemented",
   "core_files": [
-    "src/data_loader.py",
-    "static/js/static-report-generator.js"
+    "js/data.worker.js",
+    "js/static-report-generator.js",
+    "index.html"
   ],
-  "tags": ["数据处理", "CSV解析", "前端"],
-  "description": "负责CSV文件的上传、解析和数据清洗功能",
-  "updated_at": "2025-12-15",
-  "dependencies": [],
-  "related_decisions": []
+  "tags": ["数据处理", "CSV解析", "Excel解析", "JSON解析", "WebWorker", "性能优化"],
+  "description": "基于 Web Worker 的高性能多源数据解析（CSV/Excel/JSON），支持 200MB+ 大文件与异步处理",
+  "updated_at": "2025-12-16",
+  "dependencies": ["F002"],
+  "related_decisions": ["D002_JavaScript数据聚合逻辑对等实现.md"]
 }

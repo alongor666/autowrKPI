@@ -3,14 +3,15 @@
   "name": "静态部署系统",
   "status": "implemented",
   "core_files": [
-    "static/index.html",
-    "static/js/static-report-generator.js",
-    "static/templates/四川分公司车险第49周经营分析模板.html",
+    "index.html",
+    "js/static-report-generator.js",
+    "js/dashboard.js",
+    "css/dashboard.css",
     ".github/workflows/deploy.yml"
   ],
   "tags": ["静态部署", "GitHub Pages", "SPA", "UI优化", "CDN优化"],
-  "description": "完全静态化的部署系统，支持单页应用模式与GitHub Pages自动部署，集成ECharts多源CDN加载和智能元数据提取",
-  "updated_at": "2025-12-15",
-  "dependencies": ["F001", "F002", "F003", "F004", "F007"],
+  "description": "完全静态化的部署系统，支持单页应用模式与GitHub Pages自动部署，集成ECharts多源CDN加载",
+  "updated_at": "2025-12-16",
+  "dependencies": ["F001", "F008"],
   "related_decisions": ["D001_ECharts-CDN加载优化.md", "D002_JavaScript数据聚合逻辑对等实现.md"]
 }

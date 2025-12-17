@@ -1,91 +1,36 @@
-# F001: CSV数据解析与处理
+# F001 多源数据摄入与解析
 
-## 功能描述
+## 功能概述
+负责前端高性能数据文件（CSV/Excel/JSON）的上传、解析、清洗和标准化处理。
 
-负责CSV文件的上传、解析和数据清洗功能，支持拖拽上传和实时解析反馈。
+## 业务背景
+系统需要处理高达 200MB 的业务数据文件。为了避免阻塞主线程导致 UI 卡顿，必须采用异步处理机制，并支持多种常见数据格式。
 
-## 实现逻辑
+## 核心逻辑
+1. **Web Worker 架构**: 所有繁重的数据解析和清洗工作均在 Worker 线程中执行。
+2. **多格式支持**:
+   - **CSV**: 使用 PapaParse 进行流式/分块解析。
+   - **Excel**: 使用 SheetJS (xlsx) 将工作表转换为 JSON 对象。
+   - **JSON**: 原生解析，支持标准数组格式。
+3. **数据标准化**: 将不同格式的输入统一转换为系统内部标准 JSON 格式。
 
-### 后端实现 (Python)
-- **文件**: `src/data_loader.py`
-- **技术**: pandas, numpy
-- **功能**: CSV文件读取、数据类型转换、缺失值处理
+## 技术选型
+- **PapaParse**: 业界标准的 CSV 解析库，性能优异。
+- **SheetJS (xlsx)**: 强大的 Excel 文件处理库。
+- **Web Worker**: 浏览器多线程技术。
 
-### 前端实现 (JavaScript)
-- **文件**: `static/js/static-report-generator.js`
-- **技术**: Papa Parse库
-- **功能**: 浏览器端CSV解析、错误处理、进度反馈
-
-## 核心特性
-
-1. **多编码支持**: 自动检测UTF-8、GBK等编码格式
-2. **错误处理**: 详细的解析错误提示和行号定位
-3. **大文件支持**: 流式处理，避免内存溢出
-4. **数据验证**: 字段类型检查和格式验证
-5. **CSV缓存机制**: 解析后缓存数据，避免重复读取File对象（v2.0新增）
-
-## 依赖关系
-
-- **F002**: 业务类型映射 (数据映射阶段)
-- **F003**: KPI计算引擎 (计算阶段)
-
-## 接口定义
-
-### 后端接口 (已废弃，转为前端实现)
-```python
-# 原Flask接口
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    # 文件上传和处理逻辑
-```
-
-### 前端接口
+## 使用示例
 ```javascript
-// 静态实现
-class StaticReportGenerator {
-    async parseCSV(file) {
-        // Papa Parse解析逻辑
+// 主线程调用
+worker.postMessage({ 
+    type: 'parse_file', 
+    payload: { file: fileObject } 
+});
+
+// 监听结果
+worker.onmessage = (e) => {
+    if (e.data.type === 'parse_complete') {
+        console.log('Rows parsed:', e.data.payload.rowCount);
     }
-}
+};
 ```
-
-## 测试要点
-
-1. **文件格式测试**: 各种CSV格式和编码
-2. **边界条件**: 空文件、超大文件、格式错误
-3. **性能测试**: 大文件解析时间和内存使用
-4. **用户体验**: 拖拽交互和进度反馈
-
-## 维护说明
-
-- Papa Parse库版本更新兼容性
-- 新增数据类型的解析支持
-- 错误提示信息的本地化
-
-### CSV缓存机制详解（2025-12-15新增）
-
-**问题背景**：
-- 文件上传后先解析一次用于元数据预览
-- 生成报告时再次尝试解析同一File对象
-- File对象的FileReader只能读取一次，导致 "Too few fields" 错误
-
-**解决方案**（static/index.html:250-253）：
-```javascript
-let cachedCsvData = null;      // 缓存解析后的CSV数据
-let cachedGenerator = null;    // 缓存生成器实例
-let cachedMetadata = null;     // 缓存元数据
-```
-
-**工作流程**：
-1. 文件选择时：解析CSV → 缓存数据 → 显示元数据预览
-2. 生成报告时：直接使用 `cachedCsvData`，调用 `processData()` 和 `generateHTML()`
-3. 避免重复调用 `parseCSV(file)`
-
-**性能优化**：
-- 减少文件读取次数（从2次降为1次）
-- 提高报告生成速度（跳过解析环节）
-- 改善用户体验（即时响应）
-
----
-
-> 此功能是整个数据处理流程的入口，确保数据质量和用户体验。

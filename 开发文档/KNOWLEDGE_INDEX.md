@@ -1,7 +1,7 @@
 # 知识体系全景导航 (Knowledge System Panorama)
 
 > **自动生成**: 由 `scripts/generate_docs_index.py` 动态构建
-> **更新时间**: 2025-12-15 15:34:18
+> **更新时间**: 2025-12-16 23:11:56
 
 ---
 
@@ -9,7 +9,7 @@
 
 | 功能ID | 功能名称 | 状态 | 标签 | 核心文件 |
 |--------|----------|------|------|----------|
-| [F001](./开发文档/01_features/F001_csv_parsing/README.md) | CSV数据解析与处理 | ✅ implemented | 数据处理, CSV解析, 前端 | `src/data_loader.py`, `static/js/static-report-generator.js` |
+| [F001](./开发文档/01_features/F001_csv_parsing/README.md) | CSV数据解析与处理 | ✅ implemented | 数据处理, CSV解析, WebWorker, 性能优化 | `js/data.worker.js`, `js/static-report-generator.js` |
 | [F002](./开发文档/01_features/F002_business_mapping/README.md) | 业务类型映射与转换 | ✅ implemented | 数据映射, 业务逻辑, 配置化 | `src/mapper.py`, `reference/business_type_mapping.json`, `static/js/static-report-generator.js` |
 | [F003](./开发文档/01_features/F003_kpi_calculation/README.md) | KPI计算引擎 | ✅ implemented | KPI计算, 业务指标, 算法 | `src/kpi_calculator.py`, `reference/thresholds.json`, `reference/year-plans.json` ... (+1) |
 | [F004](./开发文档/01_features/F004_data_aggregation/README.md) | 数据聚合与统计 | ✅ implemented | 数据聚合, 统计分析, 多维分析 | `src/kpi_calculator.py`, `static/js/static-report-generator.js` |
@@ -22,7 +22,7 @@
 ### ✅ Implemented (7)
 
 - **[F001](开发文档/01_features/F001_csv_parsing/README.md)**: CSV数据解析与处理
-  - 标签: `数据处理`, `CSV解析`, `前端`
+  - 标签: `数据处理`, `CSV解析`, `WebWorker`, `性能优化`
 
 - **[F002](开发文档/01_features/F002_business_mapping/README.md)**: 业务类型映射与转换
   - 标签: `数据映射`, `业务逻辑`, `配置化`
@@ -72,6 +72,10 @@
 
 - **[F006](开发文档/01_features/F006_static_deployment/README.md)**: 静态部署系统
 
+### `WebWorker` (1)
+
+- **[F001](开发文档/01_features/F001_csv_parsing/README.md)**: CSV数据解析与处理
+
 ### `业务指标` (1)
 
 - **[F003](开发文档/01_features/F003_kpi_calculation/README.md)**: KPI计算引擎
@@ -88,9 +92,8 @@
 
 - **[F007](开发文档/01_features/F007_metadata_extraction/README.md)**: 智能元数据提取与分析模式识别
 
-### `前端` (2)
+### `前端` (1)
 
-- **[F001](开发文档/01_features/F001_csv_parsing/README.md)**: CSV数据解析与处理
 - **[F007](开发文档/01_features/F007_metadata_extraction/README.md)**: 智能元数据提取与分析模式识别
 
 ### `多维分析` (1)
@@ -100,6 +103,10 @@
 ### `字段映射` (1)
 
 - **[F007](开发文档/01_features/F007_metadata_extraction/README.md)**: 智能元数据提取与分析模式识别
+
+### `性能优化` (1)
+
+- **[F001](开发文档/01_features/F001_csv_parsing/README.md)**: CSV数据解析与处理
 
 ### `报告生成` (1)
 
