@@ -162,7 +162,7 @@
    ```
 
 2. **浏览器验证**（需要用户测试）:
-   - 访问 https://alongor666.github.io/utoweKPI-py/
+   - 访问 https://alongor666.github.io/autowrKPI/
    - 上传 `data/test_2025保单第49周变动成本明细表_天府.csv`
    - 打开浏览器控制台，查看日志：
      - `✅ DATA对象已从CSV数据注入，数据来源：用户上传`
@@ -208,7 +208,7 @@
    ```
 
 2. **浏览器验证**:
-   - 访问 https://alongor666.github.io/utoweKPI-py/
+   - 访问 https://alongor666.github.io/autowrKPI/
    - 上传 `test_2025保单第49周变动成本明细表_天府.csv`
    - 确认元数据提取成功，无解析错误
    - 验证报告正常生成
@@ -483,7 +483,7 @@ cat 开发文档/01_features/F006_static_deployment/meta.json
 
 **验证方式**:
 1. **功能测试**
-   - 访问 GitHub Pages: https://alongor666.github.io/utoweKPI-py/
+   - 访问 GitHub Pages: https://alongor666.github.io/autowrKPI/
    - 上传 CSV 文件，检查元数据预览面板
    - 验证分析模式识别（single/multi）
    - 确认报告在 iframe 中正常渲染
@@ -503,7 +503,7 @@ cat 开发文档/01_features/F006_static_deployment/meta.json
 
 **主要变更**:
 1. **问题定位**
-   - GitHub Pages 部署在 `/utoweKPI-py/` 子目录
+   - GitHub Pages 部署在 `/autowrKPI/` 子目录
    - 绝对路径 `/asset/echarts.min.js` 指向根域名（404）
    - 导致图表库加载失败，报告无法渲染
 
@@ -534,7 +534,7 @@ grep -A 3 "baomitu" static/templates/四川分公司车险第49周经营分析�
 # 输出: 包含 3 个 CDN 源
 
 # 2. 访问 GitHub Pages
-curl -I https://alongor666.github.io/utoweKPI-py/
+curl -I https://alongor666.github.io/autowrKPI/
 # 输出: 200 OK
 
 # 3. 测试报告生成

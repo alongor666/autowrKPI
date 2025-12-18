@@ -256,7 +256,7 @@ jobs:
 
 **问题背景**：
 - 原模板使用绝对路径 `/asset/echarts.min.js`
-- GitHub Pages 部署在子目录 `/utoweKPI-py/`
+- GitHub Pages 部署在子目录 `/autowrKPI/`
 - 绝对路径指向根域名 `https://alongor666.github.io/asset/echarts.min.js`（404）
 - 导致图表库加载失败，报告无法渲染
 

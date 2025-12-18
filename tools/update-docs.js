@@ -683,7 +683,7 @@ class DocsUpdater {
         markdown += '## 🔧 第一步：理解项目结构\n\n';
         markdown += '基于当前项目的实际结构：\n\n';
         markdown += '```\n';
-        markdown += 'utoweKPI-py/\n';
+        markdown += 'autowrKPI/\n';
         markdown += '├── index.html              # 主页面入口\n';
         markdown += '├── css/dashboard.css       # 样式文件\n';
         markdown += '├── js/\n';

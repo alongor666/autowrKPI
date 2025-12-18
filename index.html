@@ -216,10 +216,10 @@
             <!-- 经营概览 -->
             <div id="tab-overview" class="tab-content active">
                 <div class="dimension-switch">
-                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('overview', 'kpi')">分公司KPI</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'org')">三级机构</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'category')">客户类别</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'businessType')">业务类型</button>
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('overview', 'kpi', this)">KPI</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'org', this)">三级机构</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'category', this)">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('overview', 'businessType', this)">业务类型</button>
                 </div>
 
                 <div id="overview-kpi-content">
@@ -255,8 +255,8 @@
             <!-- 保费进度 -->
             <div id="tab-premium" class="tab-content">
                 <div class="dimension-switch">
-                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('premium', 'category')">客户类别</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('premium', 'businessType')">业务类型</button>
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('premium', 'category', this)">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('premium', 'businessType', this)">业务类型</button>
                 </div>
                 <div class="chart-container"><div id="chart-premium" class="chart"></div></div>
             </div>
@@ -264,9 +264,9 @@
             <!-- 变动成本 -->
             <div id="tab-cost" class="tab-content">
                 <div class="dimension-switch">
-                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('cost', 'org')">三级机构</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('cost', 'category')">客户类别</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('cost', 'businessType')">业务类型</button>
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('cost', 'org', this)">三级机构</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('cost', 'category', this)">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('cost', 'businessType', this)">业务类型</button>
                 </div>
                 <div class="chart-container"><div id="chart-cost" class="chart"></div></div>
             </div>
@@ -274,13 +274,13 @@
             <!-- 损失暴露 -->
             <div id="tab-loss" class="tab-content">
                 <div class="dimension-switch">
-                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('loss', 'org')">三级机构</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('loss', 'category')">客户类别</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('loss', 'businessType')">业务类型</button>
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('loss', 'org', this)">三级机构</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('loss', 'category', this)">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('loss', 'businessType', this)">业务类型</button>
                 </div>
                 <div class="sub-tabs">
-                    <button class="sub-tab active" onclick="Dashboard.switchSubTab('loss', 'bubble')">赔付率VS占比</button>
-                    <button class="sub-tab" onclick="Dashboard.switchSubTab('loss', 'quadrant')">频度VS额度</button>
+                    <button class="sub-tab active" data-subtab="bubble" onclick="Dashboard.switchSubTab('loss', 'bubble', this)">赔付率VS占比</button>
+                    <button class="sub-tab" data-subtab="quadrant" onclick="Dashboard.switchSubTab('loss', 'quadrant', this)">频度VS额度</button>
                 </div>
                 <div class="chart-container"><div id="chart-loss" class="chart"></div></div>
             </div>
@@ -288,9 +288,9 @@
             <!-- 费用支出 -->
             <div id="tab-expense" class="tab-content">
                 <div class="dimension-switch">
-                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('expense', 'org')">三级机构</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('expense', 'category')">客户类别</button>
-                    <button class="dimension-btn" onclick="Dashboard.switchDimension('expense', 'businessType')">业务类型</button>
+                    <button class="dimension-btn active" onclick="Dashboard.switchDimension('expense', 'org', this)">三级机构</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('expense', 'category', this)">客户类别</button>
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('expense', 'businessType', this)">业务类型</button>
                 </div>
                 <div class="chart-container"><div id="chart-expense" class="chart"></div></div>
             </div>

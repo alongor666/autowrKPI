@@ -230,7 +230,7 @@ dimensionConfigMap: {
 git add .
 git commit -m "功能更新"
 git push origin main
-# GitHub Actions会自动部署到 https://[username].github.io/utoweKPI-py
+# GitHub Actions会自动部署到 https://[username].github.io/autowrKPI
 ```
 
 ### 本地测试部署版本

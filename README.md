@@ -65,12 +65,12 @@ git push origin main
 
 3. **自动部署**
 - GitHub Actions会自动构建和部署
-- 部署完成后可通过 `https://[username].github.io/utoweKPI-py` 访问
+- 部署完成后可通过 `https://[username].github.io/autowrKPI` 访问
 
 ## 📁 项目结构
 
 ```
-utoweKPI-py/
+autowrKPI/
 ├── index.html                      # 主应用入口页面
 ├── css/
 │   └── dashboard.css               # 样式文件

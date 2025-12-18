@@ -11,7 +11,7 @@
 
 在 GitHub Pages 部署环境中，原本使用本地 ECharts 文件（`/asset/echarts.min.js`）导致了以下问题：
 
-1. **路径问题**: GitHub Pages 可能部署到子目录（如 `/utoweKPI-py/`），导致绝对路径 `/asset/echarts.min.js` 404 错误
+1. **路径问题**: GitHub Pages 可能部署到子目录（如 `/autowrKPI/`），导致绝对路径 `/asset/echarts.min.js` 404 错误
 2. **资源管理**: 本地文件需要手动更新维护
 3. **加载速度**: 缺少 CDN 加速，首次加载速度慢
 
