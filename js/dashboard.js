@@ -54,6 +54,27 @@ const Dashboard = {
         document.getElementById('dashboardContainer').style.display = 'block';
     },
 
+    formatRate(value, digits = 2) {
+        if (value === undefined || value === null) return '--';
+        const num = Number(value);
+        if (Number.isNaN(num)) return '--';
+        return num.toFixed(digits).replace(/\.00$/, '');
+    },
+
+    formatInteger(value) {
+        if (value === undefined || value === null) return '--';
+        const num = Number(value);
+        if (Number.isNaN(num)) return '--';
+        return Math.round(num).toLocaleString();
+    },
+
+    formatWanYuanFromYuan(valueInYuan) {
+        if (valueInYuan === undefined || valueInYuan === null) return '--';
+        const num = Number(valueInYuan);
+        if (Number.isNaN(num)) return '--';
+        return Math.round(num / 10000).toLocaleString();
+    },
+
     setupWorkerBridge() {
         // Simplified bridge since we are in the same context as the worker creation (mostly)
         // But if we want to use the request/response pattern:
@@ -397,8 +418,17 @@ const Dashboard = {
                 const value = d[indicator];
                 const allValues = data.map(item => item[indicator]);
                 const color = this.getIndicatorColor(indicator, value, allValues);
-                const isPercentage = ['变动成本率', '费用率', '满期赔付率', '出险率', '年计划达成率', '边际贡献率'].includes(indicator);
-                const displayValue = isPercentage ? `${value.toFixed(1)}%` : Math.round(value).toLocaleString();
+                const isPercentage = [
+                    '变动成本率',
+                    '费用率',
+                    '满期赔付率',
+                    '出险率',
+                    '年计划达成率',
+                    '边际贡献率',
+                    '保费占比',
+                    '已报告赔款占比'
+                ].includes(indicator);
+                const displayValue = isPercentage ? `${this.formatRate(value)}%` : this.formatInteger(value);
                 html += `<td style="padding: 8px; border: 1px solid #ddd; color: ${color}; font-weight: bold;">${displayValue}</td>`;
             });
             html += '</tr>';
@@ -423,11 +453,10 @@ const Dashboard = {
     switchDimension(tab, dimension) {
         this.currentDimensions[tab] = dimension;
         const container = document.querySelector(`#tab-${tab} .dimension-switch`);
+        const clickedButton = arguments.length >= 3 ? arguments[2] : null;
         if (container) {
             container.querySelectorAll('.dimension-btn').forEach(btn => btn.classList.remove('active'));
-            // Find the button that was clicked - passed via event or we need to bind
-            // For simplicity, we assume the caller handles UI update or we re-render buttons
-            // Here we rely on the onclick binding in HTML passing the event or finding element
+            if (clickedButton) clickedButton.classList.add('active');
         }
         
         // Special case for overview
@@ -448,6 +477,17 @@ const Dashboard = {
 
     switchSubTab(tab, subTab) {
         this.currentSubTab[tab] = subTab;
+        const clickedButton = arguments.length >= 3 ? arguments[2] : null;
+        const container = document.querySelector(`#tab-${tab} .sub-tabs`);
+        if (container) {
+            container.querySelectorAll('.sub-tab').forEach(btn => btn.classList.remove('active'));
+            if (clickedButton) {
+                clickedButton.classList.add('active');
+            } else {
+                const target = container.querySelector(`.sub-tab[data-subtab="${subTab}"]`);
+                if (target) target.classList.add('active');
+            }
+        }
         this.renderChart(tab);
     },
 
@@ -531,13 +571,11 @@ const Dashboard = {
 
     renderKPI() {
         const summary = this.data.summary || {};
-        const formatVal = (val) => val !== undefined && val !== null ? val.toFixed(1) : '--';
-        const formatMoney = (val) => val !== undefined && val !== null ? Math.round(val / 10000) : '--';
         
         const setStatus = (id, val, badThr, warnThr, isHighBad = true) => {
             const el = document.getElementById(id);
             if (!el) return;
-            el.innerHTML = `${formatVal(val)}<span class="metric-unit">%</span>`;
+            el.innerHTML = `${this.formatRate(val)}<span class="metric-unit">%</span>`;
             let cls = 'status-good';
             if (isHighBad) {
                 if (val > badThr) cls = 'status-danger';
@@ -558,23 +596,23 @@ const Dashboard = {
         if (summary.保费时间进度达成率 !== undefined) {
             const progressEl = document.getElementById('metric-progress');
             if (progressEl) {
-                progressEl.innerHTML = `${formatVal(summary.保费时间进度达成率)}<span class="metric-unit">%</span>`;
+                progressEl.innerHTML = `${this.formatRate(summary.保费时间进度达成率)}<span class="metric-unit">%</span>`;
                 const progressCls = this.getKPIStatusColor('progress', summary.保费时间进度达成率);
                 progressEl.className = `metric-value ${progressCls}`;
             }
         }
         
         const elPrem = document.getElementById('metric-premium');
-        if (elPrem) elPrem.innerHTML = `${formatMoney(summary.签单保费)}<span class="metric-unit">万元</span>`;
+        if (elPrem) elPrem.innerHTML = `${this.formatWanYuanFromYuan(summary.签单保费)}<span class="metric-unit">万元</span>`;
         
         const elClaim = document.getElementById('metric-claim');
-        if (elClaim) elClaim.innerHTML = `${formatMoney(summary.已报告赔款)}<span class="metric-unit">万元</span>`;
+        if (elClaim) elClaim.innerHTML = `${this.formatWanYuanFromYuan(summary.已报告赔款)}<span class="metric-unit">万元</span>`;
 
         const elExpense = document.getElementById('metric-expense');
-        if (elExpense) elExpense.innerHTML = `${formatMoney(summary.签单保费 * (summary.费用率/100))}<span class="metric-unit">万元</span>`;
+        if (elExpense) elExpense.innerHTML = `${this.formatWanYuanFromYuan(summary.签单保费 * (summary.费用率 / 100))}<span class="metric-unit">万元</span>`;
         
         const elMargin = document.getElementById('metric-margin');
-        if (elMargin) elMargin.innerHTML = `${formatMoney(summary.签单保费 * ((100-summary.变动成本率)/100))}<span class="metric-unit">万元</span>`;
+        if (elMargin) elMargin.innerHTML = `${this.formatWanYuanFromYuan(summary.签单保费 * ((100 - summary.变动成本率) / 100))}<span class="metric-unit">万元</span>`;
 
         // 生成KPI重点提示标题
         this.generateKPIAlertTitle(summary);
@@ -744,7 +782,17 @@ const Dashboard = {
         // Sorting
         if (tab === 'overview' || tab === 'cost') data.sort((a, b) => (b.变动成本率 || 0) - (a.变动成本率 || 0));
         else if (tab === 'premium') data.sort((a, b) => (b.签单保费 || 0) - (a.签单保费 || 0));
-        else if (tab === 'loss') data.sort((a, b) => (b.满期赔付率 || 0) - (a.满期赔付率 || 0));
+        else if (tab === 'loss') {
+            // 根据子标签选择排序字段
+            const subTab = this.currentSubTab.loss || 'bubble';
+            if (subTab === 'bubble') {
+                // 赔付率VS占比：按赔款占比降序排列
+                data.sort((a, b) => (b.已报告赔款占比 || 0) - (a.已报告赔款占比 || 0));
+            } else {
+                // 频度VS额度：按满期赔付率降序排列
+                data.sort((a, b) => (b.满期赔付率 || 0) - (a.满期赔付率 || 0));
+            }
+        }
         else if (tab === 'expense') data.sort((a, b) => (b.费用率 || 0) - (a.费用率 || 0));
 
         const chartDom = document.getElementById(`chart-${tab}`);
@@ -765,7 +813,13 @@ const Dashboard = {
             option = {
                 tooltip: {
                     trigger: 'axis',
-                    textStyle: { fontWeight: 'bold' }
+                    textStyle: { fontWeight: 'bold' },
+                    formatter: (params) => {
+                        const p = params?.[0];
+                        const point = p?.data;
+                        if (!point) return '';
+                        return `${p.axisValue}<br/>变动成本率: ${this.formatRate(point.actual, 1)}%`;
+                    }
                 },
                 grid: globalOptions.grid,
                 xAxis: {
@@ -782,40 +836,29 @@ const Dashboard = {
                     type: 'bar',
                     data: data.map((d, index) => ({
                         value: normalizedCostRates[index],
+                        actual: costRates[index],
                         itemStyle: { color: this.getStatusColor(d.变动成本率) }
                     })),
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: (p) => `${this.formatRate(p.data.actual, 1)}%`
+                    },
                     markLine: {
                         silent: false,
                         symbol: 'none',
                         data: [
                             {
-                                yAxis: 94,
-                                name: '危险线',
-                                lineStyle: {
-                                    color: '#c00000',
-                                    type: 'solid',
-                                    width: 3,
-                                    opacity: 0.8
-                                },
-                                label: {
-                                    formatter: '危险线: {c}%',
-                                    fontWeight: 'bold',
-                                    color: '#c00000',
-                                    fontSize: 12,
-                                    position: 'end'
-                                }
-                            },
-                            {
                                 yAxis: 91,
-                                name: '警告线',
+                                name: '预警线',
                                 lineStyle: {
                                     color: '#ffc000',
-                                    type: 'solid',
-                                    width: 3,
+                                    type: 'dashed',
+                                    width: 2,
                                     opacity: 0.8
                                 },
                                 label: {
-                                    formatter: '警告线: {c}%',
+                                    formatter: '预警线: {c}%',
                                     fontWeight: 'bold',
                                     color: '#ffc000',
                                     fontSize: 12,
@@ -837,10 +880,10 @@ const Dashboard = {
                     formatter: (params) => {
                         const d = data[params.dataIndex];
                         return `${d[dimField]}<br/>` +
-                               `满期赔付率: ${d.满期赔付率?.toFixed(1)}%<br/>` +
-                               `费用率: ${d.费用率?.toFixed(1)}%<br/>` +
-                               `变动成本率: ${d.变动成本率?.toFixed(1)}%<br/>` +
-                               `保费占比: ${d.保费占比?.toFixed(2)}%`;
+                               `满期赔付率: ${this.formatRate(d.满期赔付率, 1)}%<br/>` +
+                               `费用率: ${this.formatRate(d.费用率, 1)}%<br/>` +
+                               `变动成本率: ${this.formatRate(d.变动成本率, 1)}%<br/>` +
+                               `保费占比: ${this.formatRate(d.保费占比, 1)}%`;
                     }
                 },
                 grid: globalOptions.grid,
@@ -862,8 +905,27 @@ const Dashboard = {
                     data: data.map(d => ({
                         name: d[dimField],
                         value: [d.满期赔付率, d.费用率, d.变动成本率, d.保费占比],
-                        itemStyle: { color: this.getStatusColor(d.变动成本率) }
+                        itemStyle: { color: this.getStatusColor(d.变动成本率) },
+                        满期赔付率: d.满期赔付率,
+                        费用率: d.费用率,
+                        变动成本率: d.变动成本率,
+                        保费占比: d.保费占比
                     })),
+                    label: {
+                        show: true,
+                        position: 'top',
+                        overflow: 'truncate',
+                        ellipsis: '...',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        color: '#000000',
+                        formatter: (p) => {
+                            // 简化标签：只显示名称和变动成本率
+                            const name = p.data.name;
+                            const rate = this.formatRate(p.data.value[2], 1);
+                            return `${name}\n${rate}%`;
+                        }
+                    },
                     markLine: {
                         silent: false,
                         symbol: 'none',
@@ -903,7 +965,13 @@ const Dashboard = {
             option = {
                 tooltip: {
                     trigger: 'axis',
-                    textStyle: { fontWeight: 'bold' }
+                    textStyle: { fontWeight: 'bold' },
+                    formatter: (params) => {
+                        const p = params?.[0];
+                        const point = p?.data;
+                        if (!point) return '';
+                        return `${p.axisValue}<br/>签单保费: ${this.formatInteger(point.actual)}万元`;
+                    }
                 },
                 grid: globalOptions.grid,
                 xAxis: {
@@ -920,62 +988,105 @@ const Dashboard = {
                     type: 'bar',
                     data: data.map((d, index) => ({
                         value: normalizedPremiums[index],
+                        actual: premiums[index],
                         itemStyle: { color: this.getStatusColor(d.变动成本率) }
-                    }))
+                    })),
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: (p) => `${this.formatInteger(p.data.actual)}`
+                    }
                 }]
             };
         } else if (tab === 'loss') {
             const subTab = this.currentSubTab.loss || 'bubble';
             if (subTab === 'bubble') {
-                // 赔付VS占比气泡图
+                // 赔付率V占比：双Y轴组合图（Y1=占比柱状，Y2=满期赔付率折线）
                 const globalOptions = this.getGlobalChartOptions();
+                const thresholds = this.data.thresholds || {};
                 option = {
                     tooltip: {
-                        trigger: 'item',
+                        trigger: 'axis',
                         textStyle: { fontWeight: 'bold' },
                         formatter: (params) => {
-                            const d = data[params.dataIndex];
-                            return `${d[dimField]}<br/>` +
-                                   `满期赔付率: ${d.满期赔付率?.toFixed(1)}%<br/>` +
-                                   `保费占比: ${d.保费占比?.toFixed(2)}%<br/>` +
-                                   `签单保费: ${Math.round(d.签单保费/10000)}万元`;
+                            if (!params || params.length === 0) return '';
+                            const title = params[0].axisValue;
+                            const lines = params.map(p => `${p.marker}${p.seriesName}: ${this.formatRate(p.value, 1)}%`);
+                            return `${title}<br/>${lines.join('<br/>')}`;
                         }
                     },
                     grid: globalOptions.grid,
                     xAxis: {
-                        name: '满期赔付率(%)',
-                        min: 0,
+                        type: 'category',
+                        data: data.map(d => d[dimField]),
                         ...globalOptions.xAxis
                     },
-                    yAxis: {
-                        name: '保费占比(%)',
-                        min: 0,
-                        ...globalOptions.yAxis
-                    },
-                    series: [{
-                        type: 'scatter',
-                        symbolSize: (val, params) => this.calculateBubbleSize(data.map(d => d.签单保费), params.dataIndex),
-                        data: data.map(d => ({
-                            name: d[dimField],
-                            value: [d.满期赔付率, d.保费占比],
-                            itemStyle: { color: this.getStatusColor(d.变动成本率) }
-                        })),
-                        markLine: {
-                            silent: false,
-                            symbol: 'none',
-                            lineStyle: { type: 'solid', width: 3, opacity: 0.8, color: '#c00000' },
-                            data: [{
-                                xAxis: 75,
-                                name: '赔付率阈值',
-                                label: {
-                                    formatter: '赔付率阈值',
-                                    fontWeight: 'bold',
-                                    color: '#c00000',
-                                    fontSize: 12
-                                }
-                            }]
+                    yAxis: [
+                        {
+                            type: 'value',
+                            name: '占比(%)',
+                            min: 0,
+                            max: 100,
+                            ...globalOptions.yAxis
+                        },
+                        {
+                            type: 'value',
+                            name: '满期赔付率(%)',
+                            min: 0,
+                            max: 130,
+                            ...globalOptions.yAxis
                         }
-                    }]
+                    ],
+                    legend: {
+                        data: ['保费占比', '已报告赔款占比', '满期赔付率'],
+                        top: 0,
+                        textStyle: { fontWeight: 'bold' }
+                    },
+                    series: [
+                        {
+                            name: '保费占比',
+                            type: 'bar',
+                            yAxisIndex: 0,
+                            data: data.map(d => d.保费占比 || 0),
+                            itemStyle: { color: '#0070c0' },
+                            label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` }
+                        },
+                        {
+                            name: '已报告赔款占比',
+                            type: 'bar',
+                            yAxisIndex: 0,
+                            data: data.map(d => d.已报告赔款占比 || 0),
+                            itemStyle: { color: '#92d050' },
+                            label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` }
+                        },
+                        {
+                            name: '满期赔付率',
+                            type: 'line',
+                            yAxisIndex: 1,
+                            data: data.map(d => d.满期赔付率 || 0),
+                            itemStyle: { color: '#c00000' },
+                            lineStyle: { color: '#c00000', width: 3 },
+                            label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` },
+                            markLine: {
+                                silent: false,
+                                symbol: 'none',
+                                lineStyle: { type: 'dashed', width: 2, opacity: 0.8, color: '#ffc000' },
+                                data: [
+                                    {
+                                        yAxis: thresholds['满期赔付率'] || 70,
+                                        name: '预警线',
+                                        label: {
+                                            formatter: '预警线: {c}%',
+                                            fontWeight: 'bold',
+                                            color: '#ffc000',
+                                            fontSize: 12,
+                                            position: 'end'
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
                 };
             } else {
                 // 频度VS额度象限图
@@ -987,20 +1098,23 @@ const Dashboard = {
                         formatter: (params) => {
                             const d = data[params.dataIndex];
                             return `${d[dimField]}<br/>` +
-                                   `赔付频度: ${d.赔付频度?.toFixed(1)}%<br/>` +
-                                   `平均赔款: ${(d.平均赔款/10000)?.toFixed(1)}万元<br/>` +
-                                   `签单保费: ${Math.round(d.签单保费/10000)}万元`;
+                                   `出险率: ${this.formatRate(d.出险率, 1)}%<br/>` +
+                                   `案均赔款: ${this.formatInteger(d.案均赔款)}元<br/>` +
+                                   `签单保费: ${this.formatWanYuanFromYuan(d.签单保费)}万元`;
                         }
                     },
                     grid: globalOptions.grid,
                     xAxis: {
-                        name: '赔付频度(%)',
+                        name: '出险率(%)',
                         min: 0,
                         ...globalOptions.xAxis
                     },
                     yAxis: {
-                        name: '平均赔款(万元)',
+                        name: '案均赔款(元)',
                         min: 0,
+                        axisLabel: {
+                            formatter: (value) => this.formatInteger(value)
+                        },
                         ...globalOptions.yAxis
                     },
                     series: [{
@@ -1008,9 +1122,26 @@ const Dashboard = {
                         symbolSize: (val, params) => this.calculateBubbleSize(data.map(d => d.签单保费), params.dataIndex),
                         data: data.map(d => ({
                             name: d[dimField],
-                            value: [d.赔付频度, d.平均赔款/10000],
-                            itemStyle: { color: this.getStatusColor(d.变动成本率) }
-                        }))
+                            value: [d.出险率, d.案均赔款 || 0],
+                            itemStyle: { color: this.getStatusColor(d.变动成本率) },
+                            出险率: d.出险率,
+                            案均赔款: d.案均赔款
+                        })),
+                        label: {
+                            show: true,
+                            position: 'top',
+                            overflow: 'truncate',
+                            ellipsis: '...',
+                            fontSize: 10,
+                            fontWeight: 'bold',
+                            color: '#000000',
+                            formatter: (p) => {
+                                // 简化标签：只显示名称和出险率
+                                const name = p.data.name;
+                                const rate = this.formatRate(p.data.value[0], 1);
+                                return `${name}\n${rate}%`;
+                            }
+                        }
                     }]
                 };
             }
@@ -1022,7 +1153,13 @@ const Dashboard = {
             option = {
                 tooltip: {
                     trigger: 'axis',
-                    textStyle: { fontWeight: 'bold' }
+                    textStyle: { fontWeight: 'bold' },
+                    formatter: (params) => {
+                        const p = params?.[0];
+                        const point = p?.data;
+                        if (!point) return '';
+                        return `${p.axisValue}<br/>费用率: ${this.formatRate(point.actual, 1)}%`;
+                    }
                 },
                 grid: globalOptions.grid,
                 xAxis: {
@@ -1039,42 +1176,31 @@ const Dashboard = {
                     type: 'bar',
                     data: data.map((d, index) => ({
                         value: normalizedExpenseRates[index],
+                        actual: expenseRates[index],
                         itemStyle: {
                             color: d.费用率 > 17 ? '#c00000' : d.费用率 > 14 ? '#ffc000' : '#00b050'
                         }
                     })),
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: (p) => `${this.formatRate(p.data.actual, 1)}%`
+                    },
                     markLine: {
                         silent: false,
                         symbol: 'none',
                         data: [
                             {
-                                yAxis: 17,
-                                name: '危险线',
-                                lineStyle: {
-                                    color: '#c00000',
-                                    type: 'solid',
-                                    width: 3,
-                                    opacity: 0.8
-                                },
-                                label: {
-                                    formatter: '危险线: {c}%',
-                                    fontWeight: 'bold',
-                                    color: '#c00000',
-                                    fontSize: 12,
-                                    position: 'end'
-                                }
-                            },
-                            {
                                 yAxis: 14,
-                                name: '警告线',
+                                name: '预警线',
                                 lineStyle: {
                                     color: '#ffc000',
-                                    type: 'solid',
-                                    width: 3,
+                                    type: 'dashed',
+                                    width: 2,
                                     opacity: 0.8
                                 },
                                 label: {
-                                    formatter: '警告线: {c}%',
+                                    formatter: '预警线: {c}%',
                                     fontWeight: 'bold',
                                     color: '#ffc000',
                                     fontSize: 12,
