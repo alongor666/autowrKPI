@@ -73,6 +73,18 @@
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(160, 39, 36, 0.3);
         }
+
+        /* Hide legacy time filters as they are now drill selectors */
+        .filter-section:has(#filter-year),
+        .filter-section:has(#filter-week-start) {
+            display: none;
+        }
+
+        .filter-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
     </style>
 </head>
 <body>
@@ -149,49 +161,40 @@
 
             <div class="filter-section">
                 <span class="filter-label">周次范围</span>
-                <input type="number" id="filter-week-start" class="filter-input" placeholder="起始" min="1" max="52" value="1" style="width: 60px;">
+                <input type="number" id="filter-week-start" class="filter-input" placeholder="起始" min="1" max="52" value="1" style="width: 45px;">
                 <span>-</span>
-                <input type="number" id="filter-week-end" class="filter-input" placeholder="结束" min="1" max="52" value="52" style="width: 60px;">
+                <input type="number" id="filter-week-end" class="filter-input" placeholder="结束" min="1" max="52" value="52" style="width: 45px;">
             </div>
 
-            <div class="filter-section">
-                <button id="btn-add-drill" class="filter-btn filter-btn-secondary">+ 添加下钻</button>
+            <!-- 电商式下拉筛选区 -->
+            <div class="drill-selector-section">
+                <div class="drill-selectors" id="drill-selectors">
+                    <!-- 动态生成下拉选择器 -->
+                </div>
             </div>
 
-            <div class="drill-condition-tags" id="drill-condition-tags"></div>
+            <!-- 已选条件标签区 (已移除，整合至按钮) -->
+            <!-- <div class="drill-tags-section"> ... </div> -->
 
             <div class="filter-section" style="margin-left: auto;">
-                <button id="btn-apply-filters" class="filter-btn filter-btn-primary">应用筛选</button>
+                <!-- <button id="btn-apply-filters" class="filter-btn filter-btn-primary">应用筛选</button> -->
                 <button id="btn-reset-filters" class="filter-btn filter-btn-secondary">重置</button>
             </div>
         </div>
 
-        <!-- 下钻筛选弹窗 -->
-        <div id="drill-modal" class="drill-modal">
-            <div class="drill-modal-content">
-                <div class="drill-modal-header">
-                    <div class="drill-modal-title">选择下钻维度和值</div>
-                    <div class="drill-modal-close">&times;</div>
-                </div>
-                <div class="drill-modal-body">
-                    <div class="drill-dimension-selector">
-                        <label class="filter-label">选择维度</label>
-                        <select id="drill-dimension-select" class="filter-select" style="width: 100%; margin-top: 8px;">
-                            <option value="">请选择维度</option>
-                        </select>
-                    </div>
-                    <div id="drill-value-section" style="display: none;">
-                        <div class="drill-actions">
-                            <button class="filter-btn filter-btn-secondary" onclick="Dashboard.toggleAllValues(true)" style="font-size: 12px; padding: 6px 12px;">全选</button>
-                            <button class="filter-btn filter-btn-secondary" onclick="Dashboard.toggleAllValues(false)" style="font-size: 12px; padding: 6px 12px;">清空</button>
-                        </div>
-                        <div class="drill-value-list" id="drill-value-list"></div>
-                    </div>
-                </div>
-                <div class="drill-modal-footer">
-                    <button class="filter-btn filter-btn-secondary" onclick="Dashboard.closeDrillModal()">取消</button>
-                    <button class="filter-btn filter-btn-primary" onclick="Dashboard.confirmDrillSelection()">确定</button>
-                </div>
+        <!-- 下拉选择器的下拉面板（共用） -->
+        <div id="drill-dropdown-panel" class="drill-dropdown-panel" style="display: none;">
+            <div class="drill-dropdown-search">
+                <input type="text" id="drill-search-input" placeholder="搜索..." />
+            </div>
+            <div class="drill-dropdown-actions">
+                <button class="drill-action-btn" onclick="Dashboard.toggleAllInDropdown('all')">全选</button>
+                <button class="drill-action-btn" onclick="Dashboard.toggleAllInDropdown('invert')">反选</button>
+                <button class="drill-action-btn" onclick="Dashboard.toggleAllInDropdown('none')">清空</button>
+                <button class="drill-action-btn primary" onclick="Dashboard.applyDrillFilters()">确定</button>
+            </div>
+            <div class="drill-dropdown-list" id="drill-dropdown-list">
+                <!-- 动态生成checkbox列表 -->
             </div>
         </div>
 
@@ -255,6 +258,7 @@
             <!-- 保费进度 -->
             <div id="tab-premium" class="tab-content">
                 <div class="dimension-switch">
+                    <button class="dimension-btn" onclick="Dashboard.switchDimension('premium', 'org', this)">三级机构</button>
                     <button class="dimension-btn active" onclick="Dashboard.switchDimension('premium', 'category', this)">客户类别</button>
                     <button class="dimension-btn" onclick="Dashboard.switchDimension('premium', 'businessType', this)">业务类型</button>
                 </div>

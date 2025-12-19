@@ -21,12 +21,14 @@ const Dashboard = {
             applied: { year: null, weekStart: 1, weekEnd: 52 }
         },
         drill: {
-            dimensionConfigs: [],
-            applied: [],
-            draft: null
+            applied: [],  // 已应用的筛选条件 [{dimension, values}]
+            draft: {}     // 草稿状态 {dimensionKey: [selectedValues]}
         },
-        motorcycleMode: '全部业务'  // 新增摩托车模式字段
+        motorcycleMode: '全部业务'  // 摩托车模式字段
     },
+
+    // 当前打开的下拉面板
+    activeDropdown: null,
 
     init(initialData, workerInstance) {
         console.log('Initializing Dashboard...');
@@ -44,11 +46,20 @@ const Dashboard = {
         // Initialize UI components
         this.initTabs();
         this.initFilters();
-        this.initDrillModal();
+        this.initDrillSelectors();  // 初始化电商式下拉选择器
         this.initYearSelector();
         this.renderMetadata();  // 渲染元数据预览卡片
+        this.renderDrillTags();  // 渲染下钻条件标签
         this.renderKPI();
         this.renderChart('overview');
+
+        if (!this._resizeHandlerInstalled) {
+            this._resizeHandlerInstalled = true;
+            window.addEventListener('resize', this.debounce(() => {
+                const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+                if (activeTab) this.renderChart(activeTab);
+            }, 200));
+        }
 
         // Show Dashboard
         document.getElementById('uploadContainer').style.display = 'none';
@@ -224,6 +235,134 @@ const Dashboard = {
         this._chartDataCache = {};
     },
 
+    wrapTextByCharCount(text, maxCharsPerLine) {
+        const value = String(text ?? '');
+        const limit = Math.max(1, Math.floor(maxCharsPerLine || 1));
+        if (value.length <= limit) return value;
+        const lines = [];
+        for (let i = 0; i < value.length; i += limit) {
+            lines.push(value.slice(i, i + limit));
+        }
+        return lines.join('\n');
+    },
+
+    _toPx(value, total) {
+        if (value === undefined || value === null) return 0;
+        if (typeof value === 'number') return value;
+        const s = String(value).trim();
+        if (s.endsWith('%')) {
+            const ratio = Number.parseFloat(s.slice(0, -1));
+            if (Number.isNaN(ratio)) return 0;
+            return total * ratio / 100;
+        }
+        const num = Number.parseFloat(s);
+        return Number.isNaN(num) ? 0 : num;
+    },
+
+    _applyResponsiveCategoryXAxis(option, chart) {
+        if (!option || !chart) return option;
+
+        const xAxis = option.xAxis && !Array.isArray(option.xAxis) ? option.xAxis : null;
+        if (!xAxis || xAxis.type !== 'category') return option;
+        const categories = Array.isArray(xAxis.data) ? xAxis.data : [];
+        if (categories.length === 0) return option;
+
+        const grid = option.grid && !Array.isArray(option.grid) ? option.grid : {};
+        const chartWidth = chart.getWidth();
+        const chartHeight = chart.getHeight();
+
+        const leftPx = this._toPx(grid.left ?? '10%', chartWidth);
+        const rightPx = this._toPx(grid.right ?? '8%', chartWidth);
+        const baseBottomPx = this._toPx(grid.bottom ?? '15%', chartHeight);
+        const plotWidth = Math.max(10, chartWidth - leftPx - rightPx);
+
+        const labelCount = categories.length;
+        const perLabelWidth = Math.max(18, Math.floor(plotWidth / labelCount));
+
+        let chosenFontSize = 12;
+        let chosenCharsPerLine = 8;
+        let chosenMaxLines = 1;
+        const maxBottomPx = Math.floor(chartHeight * 0.45);
+
+        let best = null;
+        let foundFit = false;
+        for (let fontSize = 12; fontSize >= 8; fontSize -= 1) {
+            const approxCharWidth = fontSize * 0.6;
+            const charsPerLine = Math.max(2, Math.floor(perLabelWidth / approxCharWidth));
+            let maxLines = 1;
+            for (const raw of categories) {
+                const s = String(raw ?? '');
+                maxLines = Math.max(maxLines, Math.ceil(s.length / charsPerLine));
+            }
+
+            const lineHeight = fontSize + 2;
+            const neededBottom = 18 + maxLines * lineHeight + 10;
+            if (!best || neededBottom < best.neededBottom) {
+                best = { fontSize, charsPerLine, maxLines, neededBottom };
+            }
+            if (neededBottom <= maxBottomPx) {
+                chosenFontSize = fontSize;
+                chosenCharsPerLine = charsPerLine;
+                chosenMaxLines = maxLines;
+                foundFit = true;
+                break;
+            }
+        }
+
+        if (!foundFit && best) {
+            chosenFontSize = best.fontSize;
+            chosenCharsPerLine = best.charsPerLine;
+            chosenMaxLines = best.maxLines;
+        }
+
+        const finalLineHeight = chosenFontSize + 2;
+        const dynamicBottomPx = Math.max(baseBottomPx, 18 + chosenMaxLines * finalLineHeight + 10);
+
+        option.grid = {
+            ...grid,
+            bottom: Math.min(dynamicBottomPx, maxBottomPx),
+            containLabel: true
+        };
+
+        const baseAxisLabel = xAxis.axisLabel && typeof xAxis.axisLabel === 'object' ? xAxis.axisLabel : {};
+        option.xAxis = {
+            ...xAxis,
+            axisLabel: {
+                ...baseAxisLabel,
+                fontWeight: 'bold',
+                rotate: 0,
+                interval: 0,
+                hideOverlap: false,
+                fontSize: chosenFontSize,
+                lineHeight: finalLineHeight,
+                width: perLabelWidth,
+                overflow: 'break',
+                formatter: (value) => this.wrapTextByCharCount(value, chosenCharsPerLine)
+            }
+        };
+
+        const needsZoom = !foundFit || (labelCount >= 16 && perLabelWidth <= 28);
+        if (needsZoom) {
+            const existingZoom = Array.isArray(option.dataZoom) ? option.dataZoom : (option.dataZoom ? [option.dataZoom] : []);
+            const hasInsideZoom = existingZoom.some(z => z && z.type === 'inside');
+            if (!hasInsideZoom) {
+                option.dataZoom = [
+                    ...existingZoom,
+                    {
+                        type: 'inside',
+                        xAxisIndex: 0,
+                        filterMode: 'none',
+                        zoomOnMouseWheel: true,
+                        moveOnMouseWheel: true,
+                        moveOnMouseMove: true
+                    }
+                ];
+            }
+        }
+
+        return option;
+    },
+
 // 全局图表样式配置函数
     getGlobalChartOptions() {
         return {
@@ -248,14 +387,7 @@ const Dashboard = {
                     interval: 0,
                     rotate: 0, // 不倾斜
                     fontSize: 12,
-                    formatter: function(value) {
-                        // 自动缩小字体适应间距
-                        const maxLength = 8;
-                        if (value.length > maxLength) {
-                            return value.substring(0, maxLength) + '...';
-                        }
-                        return value;
-                    }
+                    overflow: 'break'
                 },
                 nameTextStyle: {
                     fontWeight: 'bold',
@@ -329,11 +461,18 @@ const Dashboard = {
             nameLocation: isXAxis ? 'center' : 'middle',  // 名称位置居中
             axisLabel: {
                 fontWeight: 'bold',
-                fontSize: 11,
+                fontSize: 10,  // 稍微减小字体
                 interval: 0,  // 显示所有标签
-                rotate: 0,    // 不倾斜
+                rotate: 45,   // 倾斜45度避免重叠
                 overflow: 'truncate',  // 超出部分截断
-                hideOverlap: false  // 不隐藏重叠标签
+                hideOverlap: false,  // 不隐藏重叠标签
+                formatter: function(value) {
+                    // 超长文本截断并添加省略号
+                    if (value && value.length > 8) {
+                        return value.substr(0, 8) + '...';
+                    }
+                    return value;
+                }
             },
             axisLine: {
                 lineStyle: {
@@ -409,7 +548,9 @@ const Dashboard = {
         html += '<thead><tr style="background-color: #f5f5f5;">';
         html += `<th style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${dimField}</th>`;
         indicators.forEach(indicator => {
-            html += `<th style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${indicator}</th>`;
+            let label = indicator;
+            if (indicator === '签单保费') label = '签单保费(万元)';
+            html += `<th style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${label}</th>`;
         });
         html += '</tr></thead><tbody>';
         data.forEach(d => {
@@ -429,7 +570,16 @@ const Dashboard = {
                     '保费占比',
                     '已报告赔款占比'
                 ].includes(indicator);
-                const displayValue = isPercentage ? `${this.formatRate(value)}%` : this.formatInteger(value);
+                
+                let displayValue;
+                if (isPercentage) {
+                    displayValue = `${this.formatRate(value)}%`;
+                } else if (indicator === '签单保费') {
+                    displayValue = this.formatWanYuanFromYuan(value);
+                } else {
+                    displayValue = this.formatInteger(value);
+                }
+                
                 html += `<td style="padding: 8px; border: 1px solid #ddd; color: ${color}; font-weight: bold;">${displayValue}</td>`;
             });
             html += '</tr>';
@@ -501,6 +651,52 @@ const Dashboard = {
 
         // 重新应用筛选并重新渲染
         this.applyFilters();
+    },
+
+    // 应用筛选
+    applyFilters() {
+        console.log('Applying filters...');
+        
+        // 1. 同步时间筛选控件的值
+        const yearSelect = document.getElementById('filter-year');
+        const weekStartInput = document.getElementById('filter-week-start');
+        const weekEndInput = document.getElementById('filter-week-end');
+        
+        if (yearSelect) this.filterState.time.applied.year = yearSelect.value || null;
+        if (weekStartInput) this.filterState.time.applied.weekStart = parseInt(weekStartInput.value) || 1;
+        if (weekEndInput) this.filterState.time.applied.weekEnd = parseInt(weekEndInput.value) || 52;
+
+        // 2. 发送请求给 Worker
+        const handler = (e) => {
+            const { type, payload } = e.data;
+            if (type === 'filter_complete') {
+                console.log('Filter complete, updating dashboard...');
+                
+                // 更新数据
+                // 保留 dynamicInfo
+                const dynamicInfo = this.data.dynamicInfo;
+                this.data = payload;
+                if (dynamicInfo && !this.data.dynamicInfo) {
+                    this.data.dynamicInfo = dynamicInfo;
+                }
+                
+                // 重新渲染
+                this.renderKPI();
+                
+                // 获取当前活动的 Tab
+                const activeTab = document.querySelector('.tab.active')?.dataset?.tab || 'overview';
+                this.renderChart(activeTab);
+                
+                // 移除监听器
+                this.worker.removeEventListener('message', handler);
+            }
+        };
+
+        this.worker.addEventListener('message', handler);
+        this.worker.postMessage({ 
+            type: 'filter_data', 
+            payload: { filterState: this.filterState } 
+        });
     },
 
     // 获取摩托车模式预警线配置
@@ -592,6 +788,29 @@ const Dashboard = {
         const config = configs[mode] || configs['含摩托车'];
         console.log(`[Dashboard] 预警线配置:`, config);
         return config;
+    },
+
+    initYearSelector() {
+        const yearSelect = document.getElementById('filter-year');
+        if (!yearSelect) return;
+
+        // Clear existing options except "All"
+        yearSelect.innerHTML = '<option value="">全部</option>';
+
+        // Get years from dynamicInfo if available, otherwise calculate
+        let years = [];
+        if (this.data.dynamicInfo && this.data.dynamicInfo.dimensionValues && this.data.dynamicInfo.dimensionValues.policy_start_year) {
+            years = this.data.dynamicInfo.dimensionValues.policy_start_year;
+        }
+
+        if (years && years.length > 0) {
+            years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearSelect.appendChild(option);
+            });
+        }
     },
 
     // 渲染元数据预览卡片
@@ -906,7 +1125,10 @@ const Dashboard = {
         
         let option = {};
         // ... (Chart Options Logic - Simplified/Ported) ...
-        // Since the full logic is long, I'll implement the key parts
+        
+        // Remove any existing indicator table before rendering new chart
+        const oldTable = chartDom.parentElement.querySelector('.indicator-table-container');
+        if (oldTable) oldTable.remove();
         
         if (tab === 'overview') {
             const costRates = data.map(d => d.变动成本率 || 0);
@@ -947,6 +1169,7 @@ const Dashboard = {
                         position: 'top',
                         formatter: (p) => `${this.formatRate(p.data.actual, 1)}%`
                     },
+                    labelLayout: { moveOverlap: 'shiftY' },
                     markLine: {
                         silent: false,
                         symbol: 'none',
@@ -1017,18 +1240,20 @@ const Dashboard = {
                     label: {
                         show: true,
                         position: 'top',
-                        overflow: 'truncate',
-                        ellipsis: '...',
+                        overflow: 'break',
                         fontSize: 10,
+                        lineHeight: 12,
+                        width: 100,
                         fontWeight: 'bold',
                         color: '#000000',
                         formatter: (p) => {
                             // 简化标签：只显示名称和变动成本率
-                            const name = p.data.name;
+                            const name = this.wrapTextByCharCount(p.data.name, 6);
                             const rate = this.formatRate(p.data.value[2], 1);
                             return `${name}\n${rate}%`;
                         }
                     },
+                    labelLayout: { moveOverlap: 'shiftY' },
                     markLine: {
                         silent: false,
                         symbol: 'none',
@@ -1098,7 +1323,8 @@ const Dashboard = {
                         show: true,
                         position: 'top',
                         formatter: (p) => `${this.formatInteger(p.data.actual)}`
-                    }
+                    },
+                    labelLayout: { moveOverlap: 'shiftY' }
                 }]
             };
         } else if (tab === 'loss') {
@@ -1152,7 +1378,8 @@ const Dashboard = {
                             yAxisIndex: 0,
                             data: data.map(d => d.保费占比 || 0),
                             itemStyle: { color: '#0070c0' },
-                            label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` }
+                            label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` },
+                            labelLayout: { moveOverlap: 'shiftY' }
                         },
                         {
                             name: '已报告赔款占比',
@@ -1160,7 +1387,8 @@ const Dashboard = {
                             yAxisIndex: 0,
                             data: data.map(d => d.已报告赔款占比 || 0),
                             itemStyle: { color: '#92d050' },
-                            label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` }
+                            label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` },
+                            labelLayout: { moveOverlap: 'shiftY' }
                         },
                         {
                             name: '满期赔付率',
@@ -1170,6 +1398,7 @@ const Dashboard = {
                             itemStyle: { color: '#c00000' },
                             lineStyle: { color: '#c00000', width: 3 },
                             label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` },
+                            labelLayout: { moveOverlap: 'shiftY' },
                             markLine: {
                                 silent: false,
                                 symbol: 'none',
@@ -1230,29 +1459,38 @@ const Dashboard = {
                             出险率: d.出险率,
                             案均赔款: d.案均赔款
                         })),
-                        label: {
-                            show: true,
-                            position: 'top',
-                            overflow: 'truncate',
-                            ellipsis: '...',
-                            fontSize: 10,
-                            fontWeight: 'bold',
-                            color: '#000000',
-                            formatter: (p) => {
-                                // 简化标签：只显示名称和出险率
-                                const name = p.data.name;
-                                const rate = this.formatRate(p.data.value[0], 1);
-                                return `${name}\n${rate}%`;
-                            }
-                        },
-                        markLine: {
-                            silent: false,
-                            symbol: 'none',
-                            lineStyle: { opacity: 0.8 },
-                            data: this.getMotorcycleModeWarningLines()
+                    label: {
+                        show: true,
+                        position: 'top',
+                        overflow: 'break',
+                        fontSize: 10,
+                        lineHeight: 12,
+                        width: 100,
+                        fontWeight: 'bold',
+                        color: '#000000',
+                        formatter: (p) => {
+                            // 简化标签：只显示名称和出险率
+                            const name = this.wrapTextByCharCount(p.data.name, 6);
+                            const rate = this.formatRate(p.data.value[0], 1);
+                            return `${name}\n${rate}%`;
+                        }
+                    },
+                    labelLayout: { moveOverlap: 'shiftY' },
+                    markLine: {
+                        silent: false,
+                        symbol: 'none',
+                        lineStyle: { opacity: 0.8 },
+                        data: this.getMotorcycleModeWarningLines()
                         }
                     }]
                 };
+                
+                // Add indicator table for quadrant chart
+                const indicators = ['出险率', '案均赔款', '变动成本率', '签单保费'];
+                const tableHtml = this.generateIndicatorTable(data, dimField, indicators);
+                const tableContainer = document.createElement('div');
+                tableContainer.innerHTML = tableHtml;
+                chartDom.parentElement.appendChild(tableContainer.firstChild);
             }
         } else if (tab === 'expense') {
             const expenseRates = data.map(d => d.费用率 || 0);
@@ -1295,6 +1533,7 @@ const Dashboard = {
                         position: 'top',
                         formatter: (p) => `${this.formatRate(p.data.actual, 1)}%`
                     },
+                    labelLayout: { moveOverlap: 'shiftY' },
                     markLine: {
                         silent: false,
                         symbol: 'none',
@@ -1322,20 +1561,17 @@ const Dashboard = {
             };
         }
 
+        option = this._applyResponsiveCategoryXAxis(option, chart);
         chart.setOption(option);
 
         // 生成动态标题和正文分析
         this.generateDynamicTitle(tab, dimension, data);
         this.generateAnalysisContent(tab, dimension, data);
 
-        // Add indicator table if bubble chart
-        if (option.series && option.series[0].type === 'scatter') {
-             // Remove old table
-             const oldTable = chartDom.parentElement.querySelector('.indicator-table-container');
-             if (oldTable) oldTable.remove();
-             
-             let indicators = [];
-             if (tab === 'cost') indicators = ['满期赔付率', '费用率', '变动成本率', '签单保费'];
+        // Add indicator table if bubble chart (cost tab)
+        // Note: Loss tab logic handled separately above
+        if (tab === 'cost') {
+             let indicators = ['满期赔付率', '费用率', '变动成本率', '签单保费'];
              
              if (indicators.length > 0) {
                  const tableHtml = this.generateIndicatorTable(data, dimField, indicators);
@@ -1355,305 +1591,625 @@ const Dashboard = {
 
     getDrillDownDimensions() {
         return [
-            { key: 'third_level_organization', label: '三级机构' },
-            { key: 'customer_category_3', label: '客户类别' },
-            { key: 'ui_short_label', label: '业务类型' },
-            { key: 'policy_start_year', label: '保单年度' },
-            { key: 'week_number', label: '周次' }
+            // Group 1: Core Organization (Rank 1)
+            { key: 'third_level_organization', label: '三级机构', group: 1 },
+            
+            // Group 2: Time Dimension
+            { key: 'policy_start_year', label: '保单年度', group: 2 },
+            { key: 'week_number', label: '周次', group: 2 },
+            
+            // Group 3: Business Core
+            { key: 'insurance_type', label: '险种', group: 3 },
+            { key: 'ui_short_label', label: '业务类型', group: 3 },
+            { key: 'coverage_type', label: '险别组合', group: 3 },
+            
+            // Group 4: Vehicle Attributes
+            { key: 'energy_type', label: '是否新能源', group: 4 },
+            { key: 'is_transferred_vehicle', label: '是否过户', group: 4 },
+            { key: 'renewal_status', label: '续保状态', group: 4 },
+            { key: 'vehicle_insurance_grade', label: '车险分等级', group: 4 },
+            { key: 'small_truck_score', label: '小货车评分', group: 4 },
+            { key: 'large_truck_score', label: '大货车评分', group: 4 },
+            
+            // Group 5: Channel
+            { key: 'terminal_source', label: '终端来源', group: 5 }
         ];
     },
 
-    initFilters() {
-        document.getElementById('btn-apply-filters').addEventListener('click', () => this.applyFilters());
-        document.getElementById('btn-reset-filters').addEventListener('click', () => this.resetFilters());
+    // 检查动态筛选器的可见性及级联锁定
+    checkDynamicVisibility() {
+        const businessTypes = this.filterState.drill.applied.find(c => c.dimension === 'ui_short_label')?.values || [];
+        const draftBusinessTypes = this.filterState.drill.draft['ui_short_label'] || [];
         
-        // Init drill down stuff
-        document.getElementById('btn-add-drill').addEventListener('click', () => this.openDrillModal());
-    },
+        let currentBusinessTypes = draftBusinessTypes.length > 0 ? draftBusinessTypes : businessTypes;
+        if (this.filterState.drill.draft['ui_short_label']) {
+            currentBusinessTypes = this.filterState.drill.draft['ui_short_label'];
+        }
 
-    initDrillModal() {
-        // Close button
-        document.querySelector('.drill-modal-close').addEventListener('click', () => this.closeDrillModal());
+        // 1. 动态可见性 (已移除隐藏逻辑，所有筛选器始终显示)
+        // const showVehicleGrade = currentBusinessTypes.some(t => t.includes('非营客-旧') || t.includes('家自-旧'));
+        // const showSmallTruck = currentBusinessTypes.some(t => t.includes('非营货') || t.includes('营货-<2t'));
+        // const showLargeTruck = currentBusinessTypes.some(t => t.includes('营货') && !t.includes('营货-<2t'));
 
-        // Dimension select change event
-        const dimensionSelect = document.getElementById('drill-dimension-select');
-        dimensionSelect.addEventListener('change', (e) => {
-            const dimension = e.target.value;
-            if (dimension) {
-                this.loadDimensionValues(dimension);
-            } else {
-                document.getElementById('drill-value-section').style.display = 'none';
-            }
-        });
-    },
-    
-    openDrillModal() {
-        document.getElementById('drill-modal').classList.add('active');
-        // Populate select
-        const select = document.getElementById('drill-dimension-select');
-        select.innerHTML = '<option value="">请选择维度</option>';
+        // this.toggleSelectorVisibility('vehicle_insurance_grade', showVehicleGrade);
+        // this.toggleSelectorVisibility('small_truck_score', showSmallTruck);
+        // this.toggleSelectorVisibility('large_truck_score', showLargeTruck);
+        
+        // 确保所有 selector 可见
         this.getDrillDownDimensions().forEach(dim => {
-            const opt = document.createElement('option');
-            opt.value = dim.key;
-            opt.textContent = dim.label;
-            select.appendChild(opt);
+            this.toggleSelectorVisibility(dim.key, true);
         });
+
+        // 2. 级联锁定逻辑
+        this.applyCascadingLocks(currentBusinessTypes);
     },
 
-    closeDrillModal() {
-        document.getElementById('drill-modal').classList.remove('active');
-        // Reset modal state
-        document.getElementById('drill-dimension-select').value = '';
-        document.getElementById('drill-value-section').style.display = 'none';
-    },
+    // 应用级联锁定规则
+    applyCascadingLocks(businessTypes) {
+        // 解锁所有
+        this.unlockSelector('renewal_status');
+        this.unlockSelector('is_transferred_vehicle');
 
-    async initYearSelector() {
-        // Request available years from worker
-        const handler = (e) => {
-            const { type, payload } = e.data;
-            if (type === 'dimension_values_response') {
-                const yearSelect = document.getElementById('filter-year');
-                yearSelect.innerHTML = '<option value="">全部</option>';
-                payload.sort().forEach(year => {
-                    const opt = document.createElement('option');
-                    opt.value = year;
-                    opt.textContent = year + '年';
-                    yearSelect.appendChild(opt);
-                });
-                this.worker.removeEventListener('message', handler);
-            }
-        };
-        this.worker.addEventListener('message', handler);
-        this.worker.postMessage({
-            type: 'get_dimension_values',
-            payload: { dimension: 'policy_start_year', currentFilters: null }
-        });
-    },
-
-    async loadDimensionValues(dimension) {
-        console.log('Loading values for dimension:', dimension);
-
-        // Show loading state
-        const valueSection = document.getElementById('drill-value-section');
-        const valueList = document.getElementById('drill-value-list');
-        valueSection.style.display = 'block';
-        valueList.innerHTML = '<div style="text-align:center;padding:20px;color:#666;">加载中...</div>';
-
-        // Request dimension values from worker
-        const handler = (e) => {
-            const { type, payload } = e.data;
-            if (type === 'dimension_values_response') {
-                this.renderValueCheckboxes(dimension, payload);
-                this.worker.removeEventListener('message', handler);
-            }
-        };
-        this.worker.addEventListener('message', handler);
-        this.worker.postMessage({
-            type: 'get_dimension_values',
-            payload: {
-                dimension: dimension,
-                currentFilters: this.filterState.time.applied
-            }
-        });
-    },
-
-    renderValueCheckboxes(dimension, values) {
-        const valueList = document.getElementById('drill-value-list');
-        valueList.innerHTML = '';
-
-        if (!values || values.length === 0) {
-            valueList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">无可用数据</div>';
+        if (!businessTypes || businessTypes.length === 0) {
             return;
         }
 
-        // Sort values
-        values.sort((a, b) => String(a).localeCompare(String(b), 'zh-CN'));
+        // 规则 A: 续保状态
+        const allNew = businessTypes.every(t => t.includes('新') && !t.includes('旧') && !t.includes('过户'));
+        const hasOld = businessTypes.some(t => t.includes('非营客-旧'));
 
-        // Get existing selections if editing this dimension
-        const existingCondition = this.filterState.drill.applied.find(c => c.dimension === dimension);
-        const selectedValues = existingCondition ? existingCondition.values : [];
-
-        // Store current draft state
-        if (!this.filterState.drill.draft) {
-            this.filterState.drill.draft = { dimension, values: [...selectedValues] };
+        if (allNew) {
+            this.lockSelector('renewal_status', ['新保']);
+        } else if (hasOld) {
+            // 如果包含“非营客-旧”，排除“新保”
+            // 检查当前是否已选“新保”，如果是则移除
+            let currentRenewal = this.filterState.drill.draft['renewal_status'] || [];
+            if (currentRenewal.includes('新保')) {
+                currentRenewal = currentRenewal.filter(v => v !== '新保');
+                this.filterState.drill.draft['renewal_status'] = currentRenewal;
+                this.updateSelectorButtonUI('renewal_status');
+            }
+            // 标记特殊状态，用于 loadDropdownValues 过滤
+            this._excludeNewRenewal = true;
         } else {
-            this.filterState.drill.draft.dimension = dimension;
-            this.filterState.drill.draft.values = [...selectedValues];
+            this._excludeNewRenewal = false;
         }
 
-        // Render checkboxes
-        values.forEach(value => {
-            const item = document.createElement('div');
-            item.className = 'drill-value-item';
+        // 规则 B: 是否过户
+        // 业务类型选择非营客-过户，是否过户就默认选过户，不能选非过户
+        const hasTransfer = businessTypes.some(t => t.includes('非营客-过户'));
+        
+        if (hasTransfer) {
+            this.lockSelector('is_transferred_vehicle', ['true']); // true 表示过户
+        }
+    },
 
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `drill-value-${value}`;
-            checkbox.value = value;
-            checkbox.checked = selectedValues.includes(value);
+    // 锁定选择器为特定值
+    lockSelector(dimensionKey, values) {
+        // 1. 更新 draft
+        this.filterState.drill.draft[dimensionKey] = values;
+        
+        // 2. 更新 UI
+        this.updateSelectorButtonUI(dimensionKey);
+        
+        // 3. 禁用按钮交互 (添加 locked 样式)
+        const btn = document.querySelector(`.drill-selector-btn[data-dimension="${dimensionKey}"]`);
+        if (btn) {
+            btn.classList.add('locked');
+            // 禁用点击事件的最简单方法是 CSS pointer-events: none
+            // 或者在 click handler 中检查
+        }
+    },
 
-            // Update draft state on change
-            checkbox.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    if (!this.filterState.drill.draft.values.includes(value)) {
-                        this.filterState.drill.draft.values.push(value);
-                    }
-                } else {
-                    const index = this.filterState.drill.draft.values.indexOf(value);
-                    if (index > -1) {
-                        this.filterState.drill.draft.values.splice(index, 1);
-                    }
+    // 解锁选择器
+    unlockSelector(dimensionKey) {
+        const btn = document.querySelector(`.drill-selector-btn[data-dimension="${dimensionKey}"]`);
+        if (btn) {
+            btn.classList.remove('locked');
+        }
+        // 注意：解锁不代表清空值，保持当前状态即可
+    },
+
+    toggleSelectorVisibility(dimensionKey, visible) {
+        const btn = document.querySelector(`.drill-selector-btn[data-dimension="${dimensionKey}"]`);
+        if (btn) {
+            btn.style.display = visible ? 'flex' : 'none';
+            if (!visible) {
+                // 如果隐藏，需要清空已选值
+                if (this.filterState.drill.draft[dimensionKey]) {
+                    this.filterState.drill.draft[dimensionKey] = [];
+                }
+                // 也要从 applied 中移除，但这需要 apply 才能生效。
+                // 暂时只清空 draft，并在 UI 上重置。
+                // 实际应用时，如果不可见，是否应该自动剔除？
+                // 简单起见，隐藏时仅仅隐藏 UI，用户下次 Apply 时如果没动，还是会带着旧值？
+                // 应该在隐藏时自动清理 Applied 吗？
+                // 既然是动态依赖，依赖消失，子条件也应失效。
+                const appliedIndex = this.filterState.drill.applied.findIndex(c => c.dimension === dimensionKey);
+                if (appliedIndex !== -1) {
+                    this.filterState.drill.applied.splice(appliedIndex, 1);
+                    // 这里直接修改了 applied，可能需要 trigger update? 
+                    // 只有当用户点击 Apply 时才会重新计算，所以这里修改 applied 没问题，
+                    // 只是下次 Apply 时不会包含它。
+                }
+                this.updateSelectorButtonUI(dimensionKey);
+            }
+        }
+    },
+
+    initFilters() {
+        // Init Analysis Mode Toggles
+        this.initAnalysisModeToggles();
+
+        // 移除全局应用按钮监听，改用下拉框内部的确定按钮
+        document.getElementById('btn-reset-filters').addEventListener('click', () => this.resetFilters());
+
+        // 点击页面其他地方关闭下拉面板
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.drill-selector-btn') && !e.target.closest('.drill-dropdown-panel')) {
+                this.closeDropdown();
+            }
+        });
+    },
+
+    initAnalysisModeToggles() {
+        // Create Toggle Container if not exists
+        let toggleContainer = document.getElementById('analysis-mode-toggles');
+        if (!toggleContainer) {
+            const filterSection = document.querySelector('.filter-section').parentNode;
+            toggleContainer = document.createElement('div');
+            toggleContainer.id = 'analysis-mode-toggles';
+            toggleContainer.className = 'analysis-mode-toggles';
+            toggleContainer.style.display = 'flex';
+            toggleContainer.style.gap = '20px';
+            toggleContainer.style.marginBottom = '15px';
+            toggleContainer.style.padding = '10px';
+            toggleContainer.style.backgroundColor = '#f8f9fa';
+            toggleContainer.style.borderRadius = '8px';
+            filterSection.insertBefore(toggleContainer, filterSection.firstChild);
+        }
+
+        // 1. Org Mode Toggle
+        const orgModeHtml = `
+            <div class="mode-toggle-group">
+                <span class="mode-label" style="font-weight:bold; margin-right:8px;">组织模式:</span>
+                <label><input type="radio" name="mode-org" value="multi" checked> 多机构</label>
+                <label style="margin-left:10px;"><input type="radio" name="mode-org" value="single"> 单机构</label>
+            </div>
+        `;
+
+        // 2. Interval Mode Toggle
+        const intervalModeHtml = `
+            <div class="mode-toggle-group">
+                <span class="mode-label" style="font-weight:bold; margin-right:8px;">区间模式:</span>
+                <label><input type="radio" name="mode-interval" value="single" checked> 单周</label>
+                <label style="margin-left:10px;"><input type="radio" name="mode-interval" value="multi"> 多周</label>
+            </div>
+        `;
+
+        toggleContainer.innerHTML = orgModeHtml + intervalModeHtml;
+
+        // Add Listeners
+        toggleContainer.querySelectorAll('input[name="mode-org"]').forEach(input => {
+            input.addEventListener('change', (e) => this.setAnalysisMode('org', e.target.value));
+        });
+        toggleContainer.querySelectorAll('input[name="mode-interval"]').forEach(input => {
+            input.addEventListener('change', (e) => this.setAnalysisMode('interval', e.target.value));
+        });
+
+        // Initialize State
+        this.analysisMode = { org: 'multi', interval: 'single' };
+    },
+
+    setAnalysisMode(type, value) {
+        this.analysisMode[type] = value;
+        
+        // Handle logic changes
+        if (type === 'org') {
+            // Update selection behavior for Org filter
+            // Re-render selectors to apply single/multi logic
+            this.renderDrillSelectors();
+        } else if (type === 'interval') {
+            // Update selection behavior for Time filters
+            this.renderDrillSelectors();
+        }
+        
+        // Clear conflicting selections if switching to single mode
+        if (value === 'single') {
+            this.enforceSingleSelectionMode(type);
+        }
+    },
+
+    enforceSingleSelectionMode(type) {
+        if (type === 'org') {
+            const orgDraft = this.filterState.drill.draft['third_level_organization'];
+            if (orgDraft && orgDraft.length > 1) {
+                this.filterState.drill.draft['third_level_organization'] = [orgDraft[0]];
+                this.applyDrillFilters();
+            }
+        } else if (type === 'interval') {
+            ['policy_start_year', 'week_number'].forEach(key => {
+                const draft = this.filterState.drill.draft[key];
+                if (draft && draft.length > 1) {
+                    this.filterState.drill.draft[key] = [draft[draft.length - 1]]; // Keep latest
                 }
             });
-
-            const label = document.createElement('label');
-            label.setAttribute('for', `drill-value-${value}`);
-            label.textContent = value;
-            label.style.cursor = 'pointer';
-
-            item.appendChild(checkbox);
-            item.appendChild(label);
-            valueList.appendChild(item);
-        });
+            this.applyDrillFilters();
+        }
     },
 
-    toggleAllValues(selectAll) {
-        const checkboxes = document.querySelectorAll('.drill-value-item input[type="checkbox"]');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = selectAll;
-            // Trigger change event to update draft state
-            checkbox.dispatchEvent(new Event('change'));
-        });
+
+
+    // 初始化下拉选择器
+    initDrillSelectors() {
+        this.renderDrillSelectors();
+        // Initial check for visibility (in case of re-init or defaults)
+        this.checkDynamicVisibility();
     },
 
-    confirmDrillSelection() {
-        const draft = this.filterState.drill.draft;
-
-        if (!draft || !draft.dimension) {
-            alert('请先选择维度');
-            return;
-        }
-
-        if (draft.values.length === 0) {
-            alert('请至少选择一个值');
-            return;
-        }
-
-        // Update or add condition
-        const existingIndex = this.filterState.drill.applied.findIndex(c => c.dimension === draft.dimension);
-        if (existingIndex > -1) {
-            this.filterState.drill.applied[existingIndex] = {
-                dimension: draft.dimension,
-                values: [...draft.values]
-            };
-        } else {
-            this.filterState.drill.applied.push({
-                dimension: draft.dimension,
-                values: [...draft.values]
-            });
-        }
-
-        // Clear draft
-        this.filterState.drill.draft = null;
-
-        // Update UI
-        this.renderDrillTags();
-        this.closeDrillModal();
-
-        console.log('Drill conditions updated:', this.filterState.drill.applied);
-    },
-
-    renderDrillTags() {
-        const container = document.getElementById('drill-condition-tags');
-        container.innerHTML = '';
-
+    // 渲染选择器按钮（支持动态排序）
+    renderDrillSelectors() {
+        const container = document.getElementById('drill-selectors');
         const dimensions = this.getDrillDownDimensions();
-        const dimensionMap = {};
-        dimensions.forEach(d => dimensionMap[d.key] = d.label);
+        
+        // 排序逻辑：已选中的排在最前面，其余按 group 和 默认顺序排序
+        const appliedDims = this.filterState.drill.applied.map(c => c.dimension);
+        const draftDims = Object.keys(this.filterState.drill.draft).filter(k => this.filterState.drill.draft[k].length > 0);
+        const activeDims = [...new Set([...appliedDims, ...draftDims])];
 
-        this.filterState.drill.applied.forEach((condition, index) => {
-            const tag = document.createElement('div');
-            tag.className = 'condition-tag';
+        const sortedDimensions = [...dimensions].sort((a, b) => {
+            const aActive = activeDims.includes(a.key);
+            const bActive = activeDims.includes(b.key);
+            
+            if (aActive && !bActive) return -1;
+            if (!aActive && bActive) return 1;
+            
+            // 如果状态相同，按 group 排序
+            if (a.group !== b.group) return (a.group || 99) - (b.group || 99);
+            
+            // 保持原数组顺序
+            return 0;
+        });
 
-            const label = dimensionMap[condition.dimension] || condition.dimension;
-            const valueText = condition.values.length > 3
-                ? `${condition.values.slice(0, 3).join(', ')}... (共${condition.values.length}项)`
-                : condition.values.join(', ');
+        container.innerHTML = ''; // Clear existing
 
-            const text = document.createElement('span');
-            text.textContent = `${label}: ${valueText}`;
+        sortedDimensions.forEach(dim => {
+            const btn = document.createElement('button');
+            btn.className = 'drill-selector-btn';
+            btn.dataset.dimension = dim.key;
+            
+            // Dynamic visibility (initially hidden if dynamic)
+            if (dim.dynamic) {
+                btn.style.display = 'none';
+            }
 
-            const removeBtn = document.createElement('span');
-            removeBtn.className = 'condition-tag-remove';
-            removeBtn.textContent = '×';
-            removeBtn.style.cursor = 'pointer';
-            removeBtn.style.marginLeft = '6px';
-            removeBtn.onclick = () => this.removeDrillCondition(index);
+            // New Button Structure
+            const label = document.createElement('span');
+            label.className = 'btn-label';
+            label.textContent = dim.label;
 
-            tag.appendChild(text);
-            tag.appendChild(removeBtn);
-            container.appendChild(tag);
+            const arrow = document.createElement('span');
+            arrow.className = 'selector-arrow';
+            arrow.textContent = '▼';
+
+            btn.appendChild(label);
+            btn.appendChild(arrow);
+
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleDropdown(dim.key, btn);
+            });
+
+            container.appendChild(btn);
+            
+            // 恢复 UI 状态
+            this.updateSelectorButtonUI(dim.key);
         });
     },
 
-    removeDrillCondition(index) {
-        this.filterState.drill.applied.splice(index, 1);
-        this.renderDrillTags();
-        console.log('Condition removed, remaining:', this.filterState.drill.applied);
+    // 切换下拉面板
+    toggleDropdown(dimensionKey, buttonElement) {
+        const panel = document.getElementById('drill-dropdown-panel');
+
+        // 如果点击的是同一个按钮，关闭面板
+        if (this.activeDropdown === dimensionKey) {
+            this.closeDropdown();
+            return;
+        }
+
+        // 关闭之前打开的面板
+        this.closeDropdown();
+
+        // 打开新面板
+        this.activeDropdown = dimensionKey;
+        buttonElement.classList.add('active');
+
+        // 定位面板
+        const rect = buttonElement.getBoundingClientRect();
+        panel.style.left = rect.left + 'px';
+        panel.style.top = (rect.bottom + 5) + 'px';
+        panel.style.display = 'flex';
+
+        // 加载维度值
+        this.loadDropdownValues(dimensionKey);
+
+        // 添加搜索功能
+        const searchInput = document.getElementById('drill-search-input');
+        searchInput.value = '';
+        searchInput.oninput = () => this.filterDropdownValues(searchInput.value);
     },
 
-    async applyFilters() {
-        console.log('Applying filters...');
-        // Gather filter state from UI inputs
-        const year = document.getElementById('filter-year').value;
-        const weekStart = document.getElementById('filter-week-start').value;
-        const weekEnd = document.getElementById('filter-week-end').value;
-        
-        this.filterState.time.applied = { year, weekStart, weekEnd };
-        
-        // Send to worker
-        this.worker.postMessage({ 
-            type: 'filter_data', 
-            payload: { filterState: this.filterState } 
+    // 关闭下拉面板
+    closeDropdown() {
+        if (!this.activeDropdown) return;
+
+        const panel = document.getElementById('drill-dropdown-panel');
+        panel.style.display = 'none';
+
+        // 移除active状态
+        document.querySelectorAll('.drill-selector-btn').forEach(btn => {
+            btn.classList.remove('active');
         });
-        
-        // Listen for result
-        // We need a one-time listener or use a promise-based bridge
+
+        this.activeDropdown = null;
+    },
+
+    // 加载下拉值列表
+    loadDropdownValues(dimensionKey) {
+        const listContainer = document.getElementById('drill-dropdown-list');
+        listContainer.innerHTML = '';
+
+        // 从Worker获取唯一值
+        this.worker.postMessage({
+            type: 'get_dimension_values',
+            payload: { 
+                dimension: dimensionKey,
+                currentFilters: this.filterState
+            }
+        });
+
         const handler = (e) => {
-            const { type, payload } = e.data;
-            if (type === 'filter_complete') {
-                this.data = payload; // Update data
-                // 性能优化：清空缓存因为数据已更改
-                this.clearChartCache();
-                this.renderKPI();
-                const activeTab = document.querySelector('.tab.active').dataset.tab;
-                this.renderChart(activeTab);
+            if (e.data.type === 'dimension_values_response') {
+                const values = e.data.payload || [];
+                const currentSelection = this.filterState.drill.draft[dimensionKey] || [];
+
+                values.forEach(value => {
+                    // 过滤逻辑：如果在 "非营客-旧" 模式下，排除 "新保"
+                    if (dimensionKey === 'renewal_status' && this._excludeNewRenewal && value === '新保') {
+                        return;
+                    }
+
+                    const item = document.createElement('div');
+                    item.className = 'drill-dropdown-item';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = value;
+                    checkbox.checked = currentSelection.includes(value);
+                    checkbox.id = `drill-${dimensionKey}-${value}`;
+
+                    const label = document.createElement('label');
+                    label.htmlFor = checkbox.id;
+                    // 使用映射后的文本
+                    label.textContent = this.getValueLabel(dimensionKey, value);
+
+                    checkbox.addEventListener('change', () => {
+                        this.handleValueSelection(dimensionKey, value, checkbox.checked);
+                    });
+
+                    item.appendChild(checkbox);
+                    item.appendChild(label);
+                    listContainer.appendChild(item);
+                });
+
+                // 特殊排序：终端来源 "0110融合销售" 置顶
+                if (dimensionKey === 'terminal_source') {
+                    const items = Array.from(listContainer.children);
+                    const topItem = items.find(item => item.textContent.includes('0110融合销售'));
+                    if (topItem) {
+                        listContainer.prepend(topItem);
+                    }
+                }
+
                 this.worker.removeEventListener('message', handler);
             }
         };
+
         this.worker.addEventListener('message', handler);
     },
 
+    // 处理值选择
+    handleValueSelection(dimensionKey, value, checked) {
+        if (!this.filterState.drill.draft[dimensionKey]) {
+            this.filterState.drill.draft[dimensionKey] = [];
+        }
+
+        if (checked) {
+            // 添加值
+            if (!this.filterState.drill.draft[dimensionKey].includes(value)) {
+                this.filterState.drill.draft[dimensionKey].push(value);
+            }
+        } else {
+            // 移除值
+            this.filterState.drill.draft[dimensionKey] =
+                this.filterState.drill.draft[dimensionKey].filter(v => v !== value);
+        }
+
+        // 更新选择器按钮的UI
+        this.updateSelectorButtonUI(dimensionKey);
+
+        // 如果修改的是业务类型，需要检查联动
+        if (dimensionKey === 'ui_short_label') {
+            this.checkDynamicVisibility();
+        }
+
+        // 移除实时更新标签逻辑
+        // this.renderDrillTags(true);
+    },
+
+    // 值显示映射配置
+    getValueLabel(dimensionKey, value) {
+        // 转换 value 为字符串进行比较
+        const strVal = String(value).toLowerCase();
+        
+        if (dimensionKey === 'energy_type') {
+            if (strVal === 'true' || strVal === '1' || strVal === '新能源') return '新能源';
+            if (strVal === 'false' || strVal === '0' || strVal === '燃油') return '燃油';
+        }
+        
+        if (dimensionKey === 'is_transferred_vehicle') {
+            if (strVal === 'true' || strVal === '1' || strVal === '过户') return '过户';
+            if (strVal === 'false' || strVal === '0' || strVal === '非过户') return '非过户';
+        }
+        
+        return value;
+    },
+
+    // 更新选择器按钮UI (显示值 + 计数)
+    updateSelectorButtonUI(dimensionKey) {
+        const btn = document.querySelector(`.drill-selector-btn[data-dimension="${dimensionKey}"]`);
+        // 如果按钮不存在（可能是因为重排序导致 DOM 重建，或者尚未初始化），则忽略，renderDrillSelectors 会再次调用
+        if (!btn) return;
+
+        const draft = this.filterState.drill.draft[dimensionKey];
+        const applied = this.filterState.drill.applied.find(c => c.dimension === dimensionKey)?.values;
+        // 优先显示 Draft，如果没有 Draft 则显示 Applied
+        const values = draft !== undefined ? draft : (applied || []);
+        
+        const count = values.length;
+        const dimensionLabel = this.getDrillDownDimensions().find(d => d.key === dimensionKey)?.label || '';
+
+        const labelSpan = btn.querySelector('.btn-label');
+        // 如果没有 .btn-label 结构（首次初始化可能没有），则重建
+        if (!labelSpan) {
+            btn.innerHTML = `<span class="btn-label">${dimensionLabel}</span><span class="selector-arrow">▼</span>`;
+        }
+
+        const finalLabelSpan = btn.querySelector('.btn-label');
+        
+        if (count === 0) {
+            // 默认状态
+            btn.classList.remove('has-selection');
+            finalLabelSpan.textContent = dimensionLabel;
+        } else if (count === 1) {
+            // 单选状态
+            btn.classList.add('has-selection');
+            const displayVal = this.getValueLabel(dimensionKey, values[0]);
+            finalLabelSpan.textContent = `${dimensionLabel}: ${displayVal}`;
+        } else {
+            // 多选状态
+            btn.classList.add('has-selection');
+            const firstDisplayVal = this.getValueLabel(dimensionKey, values[0]);
+            finalLabelSpan.textContent = `${dimensionLabel}: ${firstDisplayVal} (+${count - 1})`;
+        }
+    },
+
+    // 全选/清空/反选当前下拉
+    toggleAllInDropdown(action) {
+        if (!this.activeDropdown) return;
+
+        const checkboxes = document.querySelectorAll('#drill-dropdown-list input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            let shouldCheck = false;
+            if (action === 'all') shouldCheck = true;
+            else if (action === 'none') shouldCheck = false;
+            else if (action === 'invert') shouldCheck = !checkbox.checked;
+
+            if (checkbox.checked !== shouldCheck) {
+                checkbox.checked = shouldCheck;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+    },
+
+    // 搜索过滤
+    filterDropdownValues(searchTerm) {
+        const items = document.querySelectorAll('.drill-dropdown-item');
+        const term = searchTerm.toLowerCase();
+
+        items.forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase();
+            item.style.display = label.includes(term) ? 'flex' : 'none';
+        });
+    },
+
+    // 应用下钻筛选
+    applyDrillFilters() {
+        // 将draft状态应用到applied
+        const newApplied = [];
+
+        Object.keys(this.filterState.drill.draft).forEach(dimension => {
+            const values = this.filterState.drill.draft[dimension];
+            if (values && values.length > 0) {
+                newApplied.push({ dimension, values });
+            }
+        });
+
+        this.filterState.drill.applied = newApplied;
+        this.closeDropdown();
+        this.applyFilters();
+        
+        // 重新渲染选择器以更新排序
+        this.renderDrillSelectors();
+    },
+
+    // 删除单个筛选条件
+    removeDrillCondition(dimension, value) {
+        // 从applied中移除
+        const condition = this.filterState.drill.applied.find(c => c.dimension === dimension);
+        if (condition) {
+            condition.values = condition.values.filter(v => v !== value);
+            if (condition.values.length === 0) {
+                this.filterState.drill.applied = this.filterState.drill.applied.filter(c => c.dimension !== dimension);
+            }
+        }
+
+        // 同步到draft
+        if (this.filterState.drill.draft[dimension]) {
+            this.filterState.drill.draft[dimension] = this.filterState.drill.draft[dimension].filter(v => v !== value);
+        }
+
+        // 更新UI
+        this.renderDrillTags();
+        this.updateSelectorBadge(dimension);
+
+        // 重新应用筛选
+        this.applyFilters();
+    },
+
+    // 渲染下钻标签 (已弃用，功能移至按钮本身)
+    renderDrillTags(isDraft = false) {
+        const container = document.getElementById('drill-condition-tags');
+        if (container) container.innerHTML = '';
+    },
+
+    // 重置筛选
     resetFilters() {
-        // Reset UI
+        // Reset time filter
         document.getElementById('filter-year').value = '';
         document.getElementById('filter-week-start').value = 1;
         document.getElementById('filter-week-end').value = 52;
 
-        // Reset state
         this.filterState.time.applied = { year: null, weekStart: 1, weekEnd: 52 };
+
+        // Reset drill filter
         this.filterState.drill.applied = [];
-        this.filterState.drill.draft = null;
-        this.filterState.motorcycleMode = '全部业务';  // 重置摩托车模式
+        this.filterState.drill.draft = {};
+        
+        // 重置级联状态
+        this._excludeNewRenewal = false;
 
-        // Reset motorcycle mode UI
-        const motorcycleRadio = document.querySelector('input[name="motorcycle-mode"][value="全部业务"]');
-        if (motorcycleRadio) {
-            motorcycleRadio.checked = true;
-        }
+        // 重新渲染选择器（会重置顺序）
+        this.renderDrillSelectors();
+        
+        // 重置所有selector badge/label (renderDrillSelectors已处理，但为了保险)
+        // const dimensions = this.getDrillDownDimensions();
+        // dimensions.forEach(dim => {
+        //     this.updateSelectorButtonUI(dim.key);
+        // });
 
-        // Clear tags
-        this.renderDrillTags();
+        // Reset dynamic visibility
+        this.checkDynamicVisibility();
 
         // Apply reset
         this.applyFilters();

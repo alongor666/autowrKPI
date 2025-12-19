@@ -477,10 +477,18 @@ function extractDynamicInfo(csvData) {
 function extractDimensionValues(csvData) {
     const dimensions = [
         { key: 'third_level_organization', fields: ['third_level_organization', '三级机构', '机构'] },
-        { key: 'customer_category_3', fields: ['customer_category_3', '客户类别'] },
+        // { key: 'customer_category_3', fields: ['customer_category_3', '客户类别'] }, // Removed
         { key: 'ui_short_label', fields: ['ui_short_label', '业务类型简称', 'business_type_category'] },
         { key: 'policy_start_year', fields: ['policy_start_year', '保单年度', '年度'] },
-        { key: 'week_number', fields: ['week_number', '周次'] }
+        { key: 'week_number', fields: ['week_number', '周次'] },
+        { key: 'energy_type', fields: ['energy_type', '能源类型', '燃料类型', '是否新能源', '是否新能源车', 'is_new_energy_vehicle'], isBoolean: true },
+        { key: 'renewal_status', fields: ['renewal_status', '续保状态', '是否续保'] },
+        { key: 'terminal_source', fields: ['terminal_source', '终端来源', '出单渠道'] },
+        { key: 'coverage_type', fields: ['coverage_type', '险别组合'] },
+        { key: 'is_transferred_vehicle', fields: ['is_transferred_vehicle', '是否过户', '是否过户车'], isBoolean: true },
+        { key: 'vehicle_insurance_grade', fields: ['vehicle_insurance_grade', '车险分等级', '车险分'] },
+        { key: 'small_truck_score', fields: ['small_truck_score', '小货车评分'] },
+        { key: 'large_truck_score', fields: ['large_truck_score', '大货车评分', '营业货车评分'] }
     ];
 
     const values = {};
@@ -519,15 +527,25 @@ function getDimensionValues(data, dimensionKey, currentFilters) {
     }
 
     const dimensionConfigMap = {
-        'third_level_organization': ['third_level_organization', '三级机构', '机构'],
-        'customer_category_3': ['customer_category_3', '客户类别'],
-        'ui_short_label': ['ui_short_label', '业务类型简称', 'business_type_category'],
-        'policy_start_year': ['policy_start_year', '保单年度', '年度'],
-        'week_number': ['week_number', '周次']
+        'third_level_organization': { fields: ['third_level_organization', '三级机构', '机构'] },
+        'customer_category_3': { fields: ['customer_category_3', '客户类别'] },
+        'ui_short_label': { fields: ['ui_short_label', '业务类型简称', 'business_type_category'] },
+        'policy_start_year': { fields: ['policy_start_year', '保单年度', '年度'] },
+        'week_number': { fields: ['week_number', '周次'] },
+        'insurance_type': { fields: ['insurance_type', '险种'] },
+        'energy_type': { fields: ['energy_type', '能源类型', '燃料类型', '是否新能源', '是否新能源车', 'is_new_energy_vehicle'], isBoolean: true },
+        'renewal_status': { fields: ['renewal_status', '续保状态', '是否续保'] },
+        'terminal_source': { fields: ['terminal_source', '终端来源', '出单渠道'] },
+        'coverage_type': { fields: ['coverage_type', '险别组合'] },
+        'is_transferred_vehicle': { fields: ['is_transferred_vehicle', '是否过户', '是否过户车'], isBoolean: true },
+        'vehicle_insurance_grade': { fields: ['vehicle_insurance_grade', '车险分等级', '车险分'] },
+        'small_truck_score': { fields: ['small_truck_score', '小货车评分'] },
+        'large_truck_score': { fields: ['large_truck_score', '大货车评分', '营业货车评分'] }
     };
 
-    const fields = dimensionConfigMap[dimensionKey];
-    if (!fields) return [];
+    const config = dimensionConfigMap[dimensionKey];
+    if (!config) return [];
+    const fields = config.fields;
 
     const values = new Set();
     for (let i = 0; i < filtered.length; i++) {
@@ -575,7 +593,15 @@ function applyFiltersAndRecalc(data, filterState) {
             'customer_category_3': ['customer_category_3', '客户类别'],
             'ui_short_label': ['ui_short_label', '业务类型简称', 'business_type_category'],
             'policy_start_year': ['policy_start_year', '保单年度', '年度'],
-            'week_number': ['week_number', '周次']
+            'week_number': ['week_number', '周次'],
+            'energy_type': ['energy_type', '能源类型', '燃料类型', '是否新能源', '是否新能源车', 'is_new_energy_vehicle'],
+            'renewal_status': ['renewal_status', '续保状态', '是否续保'],
+            'terminal_source': ['terminal_source', '终端来源', '出单渠道'],
+            'coverage_type': ['coverage_type', '险别组合'],
+            'is_transferred_vehicle': ['is_transferred_vehicle', '是否过户', '是否过户车'],
+            'vehicle_insurance_grade': ['vehicle_insurance_grade', '车险分等级', '车险分'],
+            'small_truck_score': ['small_truck_score', '小货车评分'],
+            'large_truck_score': ['large_truck_score', '大货车评分', '营业货车评分']
         };
 
         filtered = filtered.filter(row => {

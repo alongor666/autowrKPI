@@ -32,17 +32,22 @@
 #### 1.3 X轴文字优化 ✅
 - **要求**:
   - X轴文字不可倾斜 (`rotate: 0`)
-  - 自动缩小适应间距
-  - 文字不允许交叉 (`interval: 0`)
-- **实现**: 添加智能文字缩放逻辑
+  - 自动缩小并自动换行，确保完整显示
+  - 文字不允许交叉（通过“单标签宽度约束 + 换行”实现）
+  - 当标签密度过高无法在单屏容纳时，启用 `dataZoom` 以保证可读性
+- **实现**: 引入“响应式轴标签布局”逻辑（字体大小、换行、底部留白自动计算）
 ```javascript
-formatter: function(value) {
-    const maxLength = 8;
-    if (value.length > maxLength) {
-        return value.substring(0, maxLength) + '...';
-    }
-    return value;
+axisLabel: {
+    rotate: 0,
+    overflow: 'break',
+    formatter: (value) => wrapText(value, maxCharsPerLine)
 }
+grid: {
+    containLabel: true,
+    bottom: dynamicBottomPx
+}
+// 当标签数量过多且无法在当前宽度内避免重叠时，启用 dataZoom
+dataZoom: [{ type: 'inside', xAxisIndex: 0 }]
 ```
 
 ### 2. 预警线样式优化 ✅
