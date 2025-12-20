@@ -163,23 +163,53 @@ function processData(csvData) {
     const totalPremium = globalKPIs['签单保费'];
     const totalClaim = globalKPIs['已报告赔款'];
     
+    // 7. Dynamic Info
+    const dynamicInfo = extractDynamicInfo(csvData);
+
+    // 计算时间进度
+    const timeProgress = calculateTimeProgress(dynamicInfo.updateDate);
+    console.log('[Worker] 时间进度:', timeProgress);
+
+    // 2. Global KPIs (Recalculate with timeProgress if needed, but calculateKPIsForGroup handles it)
+    // We need to pass timeProgress to KPI calculation functions
+    
     // 3. Year Plans
     const planMap = loadYearPlans();
     
     // 计算总计划保费（用于计算整体保费进度达成率）
+    // 修正逻辑：根据当前数据中的机构来动态汇总计划，而不是累加所有非本部机构
+    // dynamicInfo.organizations 包含了当前数据中的所有三级机构
     let totalPlanPremium = 0;
     if (planMap.size > 0) {
-        for (const [orgName, planData] of planMap.entries()) {
-            if (orgName !== '本部') {  // 排除本部
-                totalPlanPremium += planData.premium || 0;
+        // 如果是单机构模式，只取该机构的计划
+        if (dynamicInfo.analysisMode === 'single' && dynamicInfo.organizations.length > 0) {
+            const org = dynamicInfo.organizations[0];
+            const plan = planMap.get(org);
+            if (plan) totalPlanPremium = plan.premium;
+        } else {
+            // 多机构模式，通常是全省或者多个机构
+            // 如果是全省（包含四川分公司），应该直接取四川分公司的计划？
+            // 或者：根据数据中出现的每一个机构，累加它们的计划？
+            // 用户的 year-plans.json 里有 "四川分公司" 总数，也有各机构分项。
+            // 安全的做法：累加当前数据中存在的所有三级机构的计划值。
+            dynamicInfo.organizations.forEach(org => {
+                const plan = planMap.get(org);
+                if (plan) {
+                    totalPlanPremium += plan.premium || 0;
+                }
+            });
+            
+            // 如果累加结果为0（可能是因为数据里只有二级机构名没三级机构？），尝试取"四川分公司"
+            if (totalPlanPremium === 0 && planMap.has('四川分公司')) {
+                totalPlanPremium = planMap.get('四川分公司').premium;
             }
         }
     }
     
-    // 4. Aggregations
-    const dataByOrg = aggregateByDimension(mappedData, 'third_level_organization', '机构', planMap, totalPremium, totalClaim);
-    const dataByCategory = aggregateByDimension(mappedData, 'customer_category_3', '客户类别', null, totalPremium, totalClaim);
-    const dataByBusinessType = aggregateByDimension(mappedData, 'ui_short_label', '业务类型简称', null, totalPremium, totalClaim);
+    // 4. Aggregations (Pass timeProgress)
+    const dataByOrg = aggregateByDimension(mappedData, 'third_level_organization', '机构', planMap, totalPremium, totalClaim, timeProgress);
+    const dataByCategory = aggregateByDimension(mappedData, 'customer_category_3', '客户类别', null, totalPremium, totalClaim, timeProgress);
+    const dataByBusinessType = aggregateByDimension(mappedData, 'ui_short_label', '业务类型简称', null, totalPremium, totalClaim, timeProgress);
     
     // 5. Global Ratios
     const globalClaimRate = globalKPIs['满期赔付率'];
@@ -189,18 +219,18 @@ function processData(csvData) {
     // 6. Problem detection
     const problems = detectProblems(dataByOrg);
 
-    // 7. Dynamic Info
-    const dynamicInfo = extractDynamicInfo(csvData);
-
-    // 8. 计算整体保费时间进度达成率（基于之前计算的totalPlanPremium）
+    // 8. 计算整体保费时间进度达成率
+    // 公式：(实际保费 / 年度计划) / 时间进度
     let globalProgressRate = null;
-    if (totalPlanPremium > 0) {
-        globalProgressRate = (totalPremium / totalPlanPremium) * 100;
+    if (totalPlanPremium > 0 && timeProgress > 0) {
+        const rawAchievementRate = totalPremium / totalPlanPremium; // 实际完成比例
+        globalProgressRate = (rawAchievementRate / timeProgress) * 100; // 时间进度达成率
     }
 
     console.log('[Worker] 保费进度计算:', {
         totalPremium,
         totalPlanPremium,
+        timeProgress,
         progressRate: globalProgressRate
     });
 
@@ -228,6 +258,40 @@ function processData(csvData) {
         thresholds: thresholds || {},
         dynamicInfo: dynamicInfo // Explicitly pass dynamic info
     };
+}
+
+function calculateTimeProgress(dateStr) {
+    if (!dateStr) return 1; // Fallback to 100% if no date
+
+    try {
+        const snapshotDate = new Date(dateStr);
+        if (isNaN(snapshotDate.getTime())) return 1;
+
+        // 计算基准日：更新日期的前一日
+        const baseDate = new Date(snapshotDate);
+        baseDate.setDate(baseDate.getDate() - 1);
+        
+        const year = baseDate.getFullYear();
+        
+        // 判断闰年
+        const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+        const daysInYear = isLeap ? 366 : 365;
+        
+        // 计算序数日 (Day of Year)
+        const startOfYear = new Date(year, 0, 1);
+        const diffTime = baseDate - startOfYear;
+        const dayOfYear = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        
+        // 计算已过天数 = 序数日 - 1
+        const passedDays = dayOfYear - 1;
+        
+        if (passedDays <= 0) return 0.0001; // 避免分母为0
+        
+        return passedDays / daysInYear;
+    } catch (e) {
+        console.error('Time progress calculation failed:', e);
+        return 1;
+    }
 }
 
 function mapBusinessTypes(csvData) {
@@ -264,7 +328,7 @@ function loadYearPlans() {
     return planMap;
 }
 
-function calculateKPIsForGroup(groupData, plan = null) {
+function calculateKPIsForGroup(groupData, plan = null, timeProgress = 1) {
     const fieldMap = {
         premium: ['signed_premium_yuan', '签单保费'],
         maturedPremium: ['matured_premium_yuan', '满期保费'],
@@ -311,8 +375,9 @@ function calculateKPIsForGroup(groupData, plan = null) {
     const average_claim = safeDivide(sum_reported_claim, sum_claim_case_count);
 
     let achievement_rate = null;
-    if (plan && plan.premium && plan.premium > 0) {
-        achievement_rate = safeDivide(sum_signed_premium, plan.premium) * 100;
+    if (plan && plan.premium && plan.premium > 0 && timeProgress > 0) {
+        // 公式：保费达成率 / 时间进度
+        achievement_rate = (sum_signed_premium / plan.premium) / timeProgress * 100;
     }
 
     return {
@@ -331,7 +396,7 @@ function calculateKPIsForGroup(groupData, plan = null) {
     };
 }
 
-function aggregateByDimension(csvData, dimensionField, labelName, planMap, totalPremium, totalClaim) {
+function aggregateByDimension(csvData, dimensionField, labelName, planMap, totalPremium, totalClaim, timeProgress) {
     const groups = {};
     for (let i = 0; i < csvData.length; i++) {
         const row = csvData[i];
@@ -359,7 +424,7 @@ function aggregateByDimension(csvData, dimensionField, labelName, planMap, total
     const results = [];
     for (const [dimensionValue, groupData] of Object.entries(groups)) {
         const plan = planMap ? planMap.get(dimensionValue) : null;
-        const kpis = calculateKPIsForGroup(groupData, plan);
+        const kpis = calculateKPIsForGroup(groupData, plan, timeProgress);
         const premium_share = totalPremium > 0 ? (kpis['签单保费'] / totalPremium * 100) : 0;
         const claim_share = totalClaim > 0 ? (kpis['已报告赔款'] / totalClaim * 100) : 0;
 
@@ -664,5 +729,41 @@ function applyFiltersAndRecalc(data, filterState) {
     return processData(filtered);
 }
 
-// 摩托车业务筛选函数
+// 摩托车业务筛选函数 (Placeholder, not implemented yet or removed)
+
+function calculateTimeProgress(dateStr) {
+    if (!dateStr) return 1; // Fallback to 100% if no date
+
+    try {
+        const snapshotDate = new Date(dateStr);
+        if (isNaN(snapshotDate.getTime())) return 1;
+
+        // 计算基准日：更新日期的前一日
+        const baseDate = new Date(snapshotDate);
+        baseDate.setDate(baseDate.getDate() - 1);
+        
+        const year = baseDate.getFullYear();
+        
+        // 判断闰年
+        const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+        const daysInYear = isLeap ? 366 : 365;
+        
+        // 计算序数日 (Day of Year)
+        const startOfYear = new Date(year, 0, 1);
+        const diffTime = baseDate - startOfYear;
+        // diffTime in ms. +1 because Jan 1st is day 1.
+        const dayOfYear = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        
+        // 计算已过天数 = 序数日 - 1 (根据用户需求)
+        // 用户规则：“当年第一天不计算”。如果 passedDays <= 0，返回 0.0001 避免分母为0
+        const userPassedDays = dayOfYear - 1;
+        
+        if (userPassedDays <= 0) return 0.0001; 
+        
+        return userPassedDays / daysInYear;
+    } catch (e) {
+        console.error('Time progress calculation failed:', e);
+        return 1;
+    }
+}
 

@@ -122,6 +122,17 @@
                 <div class="header-info" id="reportDate">数据截止日期：--</div>
             </div>
 
+            <!-- 简洁元数据信息条 -->
+            <div class="header-metadata-bar" id="header-metadata-bar">
+                <span class="meta-item" id="meta-org-mode">组织模式: --</span>
+                <span class="meta-divider">|</span>
+                <span class="meta-item" id="meta-interval-mode">区间模式: --</span>
+                <span class="meta-divider">|</span>
+                <span class="meta-item" id="meta-analysis-mode">分析模式: --</span>
+                <span class="meta-divider">|</span>
+                <span class="meta-item" id="meta-update-date-simple">更新日期: --</span>
+            </div>
+
         <!-- 元数据预览卡片 -->
         <div id="metadata-card" class="metadata-preview" style="display: none;">
             <div class="metadata-item">
@@ -152,6 +163,11 @@
 
         <!-- 全局筛选控制区 -->
         <div class="filter-control-bar">
+            <!-- 重置按钮移到最前面 -->
+            <div class="filter-section">
+                <button id="btn-reset-filters" class="filter-btn filter-btn-reset">重置</button>
+            </div>
+
             <div class="filter-section">
                 <span class="filter-label">年度</span>
                 <select id="filter-year" class="filter-select">
@@ -175,11 +191,6 @@
 
             <!-- 已选条件标签区 (已移除，整合至按钮) -->
             <!-- <div class="drill-tags-section"> ... </div> -->
-
-            <div class="filter-section" style="margin-left: auto;">
-                <!-- <button id="btn-apply-filters" class="filter-btn filter-btn-primary">应用筛选</button> -->
-                <button id="btn-reset-filters" class="filter-btn filter-btn-secondary">重置</button>
-            </div>
         </div>
 
         <!-- 下拉选择器的下拉面板（共用） -->
@@ -331,6 +342,50 @@
             errorMsg.textContent = '系统初始化失败，请刷新页面';
             errorMsg.style.display = 'block';
         }
+
+        // 处理URL参数自动加载数据
+        function loadFileFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const fileName = urlParams.get('file');
+            if (fileName) {
+                console.log('检测到文件参数:', fileName);
+                // 尝试通过fetch加载文件
+                fetch(`./${encodeURIComponent(fileName)}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`文件加载失败: ${response.status}`);
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const file = new File([blob], fileName, { type: 'text/csv' });
+                        console.log('文件加载成功:', fileName);
+                        
+                        // 创建DataTransfer对象来模拟文件选择
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        fileInput.files = dataTransfer.files;
+                        
+                        fileInfo.textContent = `已选择: ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)`;
+                        fileInfo.style.display = 'block';
+                        document.getElementById('uploadText').textContent = file.name;
+                        submitBtn.style.display = 'block';
+                        errorMsg.style.display = 'none';
+                        fileInput.style.pointerEvents = 'none';
+                        
+                        // 自动提交处理
+                        submitBtn.click();
+                    })
+                    .catch(err => {
+                        console.error('URL文件加载失败:', err);
+                        errorMsg.textContent = 'URL中的文件加载失败: ' + err.message;
+                        errorMsg.style.display = 'block';
+                    });
+            }
+        }
+
+        // 页面加载完成后尝试从URL加载文件
+        loadFileFromURL();
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];

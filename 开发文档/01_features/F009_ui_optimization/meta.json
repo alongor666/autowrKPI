@@ -1,0 +1,16 @@
+{
+  "id": "F009",
+  "name": "UI优化 - 麦肯锡式仪表盘体验提升",
+  "status": "implementing",
+  "priority": "high",
+  "created": "2024-12-20",
+  "updated": "2024-12-20",
+  "author": "Claude Code",
+  "tags": ["ui", "ux", "visualization", "dashboard", "optimization"],
+  "dependencies": ["F008"],
+  "related_files": [
+    "index.html",
+    "js/dashboard.js",
+    "css/dashboard.css"
+  ]
+}

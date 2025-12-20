@@ -153,6 +153,35 @@ const Dashboard = {
         else return '#c00000';
     },
 
+    /**
+     * 获取堆积图KPI颜色（根据指标状态动态着色）
+     * @param {string} kpiName - KPI指标名称
+     * @param {number} kpiValue - KPI值
+     * @returns {string} - 颜色值
+     */
+    getStackedBarColor(kpiName, kpiValue) {
+        const thresholdConfig = {
+            '满期赔付率': { danger: 75, warning: 70 },
+            '费用率': { danger: 17, warning: 14 },
+            '变动成本率': { danger: 94, warning: 91 }
+        };
+
+        const threshold = thresholdConfig[kpiName];
+        if (!threshold) {
+            // 默认使用蓝色（非风险指标）
+            return '#5470c6';
+        }
+
+        // 根据阈值判断颜色
+        if (kpiValue >= threshold.danger) {
+            return '#a02724'; // 红色-危险
+        } else if (kpiValue >= threshold.warning) {
+            return '#ffc000'; // 黄色-警告
+        } else {
+            return '#00b050'; // 绿色-良好
+        }
+    },
+
     calculateBubbleSize(values, dataIndex) {
         // 性能优化：缓存计算结果
         if (!this._bubbleSizeCache || this._bubbleSizeCache.values !== values) {
@@ -825,9 +854,48 @@ const Dashboard = {
             return;
         }
 
-        console.log('渲染元数据预览卡片:', info);
+        console.log('渲染元数据信息:', info);
 
-        // 更新各个字段
+        // 更新页面标题
+        const mainTitle = document.getElementById('mainTitle');
+        if (mainTitle && info.title) {
+            mainTitle.textContent = info.title;
+        }
+
+        // 更新报告日期
+        const reportDate = document.getElementById('reportDate');
+        if (reportDate) {
+            if (info.updateDate) {
+                reportDate.textContent = `数据截止日期：${info.updateDate}`;
+            } else {
+                reportDate.textContent = `保单年度：${info.year} | 周次：第${info.week}周`;
+            }
+        }
+
+        // 更新简洁元数据信息条
+        const metaOrgMode = document.getElementById('meta-org-mode');
+        const metaIntervalMode = document.getElementById('meta-interval-mode');
+        const metaAnalysisMode = document.getElementById('meta-analysis-mode');
+        const metaUpdateDateSimple = document.getElementById('meta-update-date-simple');
+
+        if (metaOrgMode) {
+            const orgModeText = info.analysisMode === 'single' ? '单机构' : '全机构';
+            metaOrgMode.textContent = `组织模式: ${orgModeText}`;
+        }
+
+        if (metaIntervalMode) {
+            metaIntervalMode.textContent = `区间模式: 周次累计`;
+        }
+
+        if (metaAnalysisMode) {
+            metaAnalysisMode.textContent = `分析模式: 完整版`;
+        }
+
+        if (metaUpdateDateSimple) {
+            metaUpdateDateSimple.textContent = `更新日期: ${info.updateDate || '未提供'}`;
+        }
+
+        // 保留原有的元数据卡片更新逻辑（隐藏状态）
         const metaYear = document.getElementById('meta-year');
         const metaWeek = document.getElementById('meta-week');
         const metaUpdateDate = document.getElementById('meta-update-date');
@@ -835,7 +903,6 @@ const Dashboard = {
         const metaOrgCount = document.getElementById('meta-org-count');
         const metaOrgList = document.getElementById('meta-org-list');
         const metaOrgListContainer = document.getElementById('meta-org-list-container');
-        const metadataCard = document.getElementById('metadata-card');
 
         if (metaYear) metaYear.textContent = info.year || '-';
         if (metaWeek) metaWeek.textContent = `第${info.week}周`;
@@ -871,27 +938,6 @@ const Dashboard = {
                     metaOrgListContainer.style.display = 'none';
                 }
             }
-        }
-
-        // 更新页面标题
-        const mainTitle = document.getElementById('mainTitle');
-        if (mainTitle && info.title) {
-            mainTitle.textContent = info.title;
-        }
-
-        // 更新报告日期
-        const reportDate = document.getElementById('reportDate');
-        if (reportDate) {
-            if (info.updateDate) {
-                reportDate.textContent = `数据截止日期：${info.updateDate}`;
-            } else {
-                reportDate.textContent = `保单年度：${info.year} | 周次：第${info.week}周`;
-            }
-        }
-
-        // 显示元数据卡片
-        if (metadataCard) {
-            metadataCard.style.display = 'flex';
         }
     },
 
@@ -1135,20 +1181,56 @@ const Dashboard = {
         if (oldTable) oldTable.remove();
         
         if (tab === 'overview') {
-            const costRates = data.map(d => d.变动成本率 || 0);
-            const normalizedCostRates = this.normalizeBarHeights(costRates);
             const globalOptions = this.getGlobalChartOptions();
-
+            
+            // 判断是否应该显示保费时间进度达成率折线图
+            const shouldShowProgressLine = this.shouldShowPremiumProgressLine(dimension);
+            
+            // 准备堆叠图数据
+            const claimRates = data.map(d => d.满期赔付率 || 0);  // 满期赔付率（底部）
+            const expenseRates = data.map(d => d.费用率 || 0); // 费用率（上部）
+            const achievementRates = data.map(d => d.年计划达成率 || 0); // 保费达成率
+            
+            // 构建基础配置
             option = {
                 tooltip: {
                     trigger: 'axis',
                     textStyle: { fontWeight: 'bold' },
                     formatter: (params) => {
-                        const p = params?.[0];
-                        const point = p?.data;
-                        if (!point) return '';
-                        return `${p.axisValue}<br/>变动成本率: ${this.formatRate(point.actual, 1)}%`;
+                        let result = `${params[0].axisValue}<br/>`;
+                        
+                        // 堆叠柱状图数据
+                        const barParams = params.filter(p => p.seriesType === 'bar');
+                        if (barParams.length > 0) {
+                            const claimParam = barParams.find(p => p.seriesName === '满期赔付率');
+                            const expenseParam = barParams.find(p => p.seriesName === '费用率');
+                            
+                            if (claimParam) {
+                                result += `${claimParam.marker}满期赔付率: ${this.formatRate(claimParam.value, 1)}%<br/>`;
+                            }
+                            if (expenseParam) {
+                                result += `${expenseParam.marker}费用率: ${this.formatRate(expenseParam.value, 1)}%<br/>`;
+                            }
+                            
+                            // 显示总变动成本率
+                            const totalCostRate = (claimParam?.value || 0) + (expenseParam?.value || 0);
+                            result += `变动成本率: ${this.formatRate(totalCostRate, 1)}%<br/>`;
+                        }
+                        
+                        // 保费进度柱状图数据（如果存在）
+                        const progressParams = params.filter(p => p.seriesName === '保费时间进度达成率');
+                        if (progressParams.length > 0) {
+                            result += `${progressParams[0].marker}保费时间进度达成率: ${this.formatRate(progressParams[0].value, 1)}%<br/>`;
+                        }
+                        
+                        return result;
                     }
+                },
+                legend: {
+                    data: shouldShowProgressLine ? 
+                        ['满期赔付率', '费用率', '保费时间进度达成率'] : 
+                        ['满期赔付率', '费用率'],
+                    ...globalOptions.legend
                 },
                 grid: globalOptions.grid,
                 xAxis: {
@@ -1156,48 +1238,108 @@ const Dashboard = {
                     data: data.map(d => d[dimField]),
                     ...globalOptions.xAxis
                 },
-                yAxis: {
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '成本率(%)',
+                        max: 120, // 给堆叠图留出足够空间
+                        position: 'left',
+                        ...globalOptions.yAxis
+                    }
+                ],
+                series: [
+                    {
+                        name: '满期赔付率',
+                        type: 'bar',
+                        stack: 'cost',
+                        yAxisIndex: 0,
+                        data: claimRates.map((rate, index) => ({
+                            value: rate,
+                            itemStyle: {
+                                color: this.getStackedBarColor('满期赔付率', rate)
+                            }
+                        })),
+                        label: {
+                            show: true,
+                            position: 'inside',
+                            formatter: (p) => `${this.formatRate(p.value, 1)}%`,
+                            color: '#fff',
+                            fontWeight: 'bold'
+                        }
+                    },
+                    {
+                        name: '费用率',
+                        type: 'bar',
+                        stack: 'cost',
+                        yAxisIndex: 0,
+                        data: expenseRates.map((rate, index) => ({
+                            value: rate,
+                            itemStyle: {
+                                color: this.getStackedBarColor('费用率', rate)
+                            }
+                        })),
+                        label: {
+                            show: true,
+                            position: 'inside',
+                            formatter: (p) => `${this.formatRate(p.value, 1)}%`,
+                            color: '#fff',
+                            fontWeight: 'bold'
+                        }
+                    }
+                ]
+            };
+            
+            // 如果需要显示保费进度折线图，添加右Y轴和折线系列
+            if (shouldShowProgressLine) {
+                option.yAxis.push({
                     type: 'value',
-                    name: '变动成本率(%)',
+                    name: '达成率(%)',
+                    max: 150, // 达成率可能超过100%
+                    position: 'right',
                     ...globalOptions.yAxis
-                },
-                series: [{
+                });
+                
+                option.series.push({
+                    name: '保费时间进度达成率',
                     type: 'bar',
-                    data: data.map((d, index) => ({
-                        value: normalizedCostRates[index],
-                        actual: costRates[index],
-                        itemStyle: { color: this.getStatusColor(d.变动成本率) }
+                    yAxisIndex: 1,
+                    data: achievementRates.map((rate, index) => ({
+                        value: rate,
+                        itemStyle: { color: '#ff4d4f' } // 红色
                     })),
                     label: {
                         show: true,
                         position: 'top',
-                        formatter: (p) => `${this.formatRate(p.data.actual, 1)}%`
-                    },
-                    labelLayout: { moveOverlap: 'shiftY' },
-                    markLine: {
-                        silent: false,
-                        symbol: 'none',
-                        data: [
-                            {
-                                yAxis: 91,
-                                name: '预警线',
-                                lineStyle: {
-                                    color: '#ffc000',
-                                    type: 'dashed',
-                                    width: 2,
-                                    opacity: 0.8
-                                },
-                                label: {
-                                    formatter: '预警线: {c}%',
-                                    fontWeight: 'bold',
-                                    color: '#ffc000',
-                                    fontSize: 12,
-                                    position: 'end'
-                                }
-                            }
-                        ]
+                        formatter: (p) => `${this.formatRate(p.value, 1)}%`,
+                        color: '#ff4d4f',
+                        fontWeight: 'bold'
                     }
-                }]
+                });
+            }
+            
+            // 添加预警线（变动成本率91%）
+            option.series[0].markLine = {
+                silent: false,
+                symbol: 'none',
+                data: [
+                    {
+                        yAxis: 91,
+                        name: '预警线',
+                        lineStyle: {
+                            color: '#ffc000',
+                            type: 'dashed',
+                            width: 2,
+                            opacity: 0.8
+                        },
+                        label: {
+                            formatter: '预警线: {c}%',
+                            fontWeight: 'bold',
+                            color: '#ffc000',
+                            fontSize: 12,
+                            position: 'end'
+                        }
+                    }
+                ]
             };
         } else if (tab === 'cost') {
             const thresholds = this.data.thresholds || {};
@@ -2284,6 +2426,38 @@ const Dashboard = {
 
         // Apply reset
         this.applyFilters();
+    },
+
+    /**
+     * 判断是否应该显示保费时间进度达成率折线图
+     * 只有在三级机构维度且没有任何细分筛选条件时才显示
+     * 因为只有机构级别的保费计划，没有细分项的保费计划
+     * @param {string} dimension - 当前维度
+     * @returns {boolean} 是否显示折线图
+     */
+    shouldShowPremiumProgressLine(dimension) {
+        // 只有三级机构维度才可能显示折线图
+        if (dimension !== 'org') {
+            return false;
+        }
+
+        // 检查是否有任何筛选条件（除了机构维度本身）
+        // 只要有任何细分筛选，就无法计算保费达成率
+        const hasOtherFilters = this.filterState.drill.applied.some(filter => {
+            // 排除机构维度的筛选，检查其他所有筛选条件
+            return filter.dimension !== 'third_level_organization';
+        });
+
+        // 如果有任何其他筛选条件，则不显示折线图
+        if (hasOtherFilters) {
+            return false;
+        }
+
+        // 对于机构筛选，可以部分选择（只要有机构级别的保费计划就能计算）
+        const orgFilter = this.filterState.drill.applied.find(f => f.dimension === 'third_level_organization');
+        
+        // 如果没有机构筛选或选择了至少一个机构，都可以显示
+        return !orgFilter || orgFilter.values.length > 0;
     }
 };
 
