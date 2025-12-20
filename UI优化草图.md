@@ -347,7 +347,12 @@ function getStackedBarColor(kpiName, kpiValue, isPositiveIndicator = false) {
    - 直接使用红色文字显示
    - 移除背景底色
    - 移除⚠️符号
-   - 保持原有字体大小
+   - **字体大小与标签字体大小一致**
+   - **颜色与h1颜色一致**
+
+3. **元素清理要求**：
+   - **删除overview-dynamic-title div元素**
+   - 只保留section-alert-title元素显示主题内容
 
 3. **内容动态生成**：
    - 主题内容根据当前筛选条件和数据状态动态生成

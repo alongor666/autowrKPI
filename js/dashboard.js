@@ -675,12 +675,6 @@ const Dashboard = {
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                 document.getElementById(`tab-${tabName}`).classList.add('active');
                 this.renderChart(tabName);
-
-                // 更新主题提示
-                const dimension = this.currentDimensions[tabName];
-                if (dimension !== 'kpi') {
-                    this.generateSectionAlertTitle(tabName, dimension);
-                }
             });
         });
     },
@@ -711,11 +705,6 @@ const Dashboard = {
             }
         }
         this.renderChart(tab);
-
-        // 生成板块主题提示（除了KPI标签页）
-        if (dimension !== 'kpi') {
-            this.generateSectionAlertTitle(tab, dimension);
-        }
     },
 
     switchSubTab(tab, subTab) {
@@ -732,10 +721,6 @@ const Dashboard = {
             }
         }
         this.renderChart(tab);
-
-        // 生成板块主题提示
-        const dimension = this.currentDimensions[tab];
-        this.generateSectionAlertTitle(tab, dimension);
     },
 
 
@@ -773,12 +758,6 @@ const Dashboard = {
                 // 获取当前活动的 Tab
                 const activeTab = document.querySelector('.tab.active')?.dataset?.tab || 'overview';
                 this.renderChart(activeTab);
-
-                // 更新主题提示
-                const dimension = this.currentDimensions[activeTab];
-                if (dimension !== 'kpi') {
-                    this.generateSectionAlertTitle(activeTab, dimension);
-                }
 
                 // 移除监听器
                 this.worker.removeEventListener('message', handler);
@@ -1903,6 +1882,7 @@ const Dashboard = {
         // 生成动态标题和正文分析
         this.generateDynamicTitle(tab, dimension, data);
         this.generateAnalysisContent(tab, dimension, data);
+        this.generateSectionAlertTitle(tab, dimension);
 
         // Add indicator table if bubble chart (cost tab)
         // Note: Loss tab logic handled separately above

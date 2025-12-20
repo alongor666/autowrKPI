@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - '开发文档/**'
-      - 'scripts/**'
+      - 'tools/**'
   workflow_dispatch:
 
 permissions:
@@ -19,14 +19,14 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: 设置Python环境
-        uses: actions/setup-python@v4
+      - name: 设置Node环境
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.9'
+          node-version: '20'
           
       - name: 生成文档索引
         run: |
-          python3 scripts/generate_docs_index.py 开发文档
+          node "tools/update-docs.js"
           
       - name: 检查是否有变更
         id: verify-changed-files
@@ -42,6 +42,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add 开发文档/KNOWLEDGE_INDEX.md
+          git add ".trae/documents/generated"
           git commit -m "🤖 自动更新文档索引"
           git push

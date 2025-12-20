@@ -523,8 +523,8 @@ body {
 .section-alert-title {
     padding: 8px 16px;
     margin: 16px 0;
-    font-size: 14px;
-    color: #dc3545;  /* 红色文字 */
+    font-size: 15px;  /* 与标签字体大小一致 */
+    color: var(--primary-red);  /* 与h1颜色一致 */
     font-weight: 500;
     /* 移除背景色、边框、阴影等装饰 */
 }
