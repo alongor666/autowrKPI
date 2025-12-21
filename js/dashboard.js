@@ -29,6 +29,56 @@ const Dashboard = {
     // 当前打开的下拉面板
     activeDropdown: null,
 
+    // 指标名称映射表（原始名称 → 显示名称）
+    displayNameMap: {
+        '已报告赔款占比': '赔款贡献度',
+        '保费占比': '保费贡献度',
+        '赔付率VS占比': '满期赔付率VS赔款贡献度'
+    },
+
+    // 组织模式配置（2025-12-21新增）
+    organizationModes: {
+        // 分公司模式：显示所有三级机构（默认）
+        branch: {
+            name: '分公司',
+            titlePrefix: '四川分公司',
+            description: '显示所有三级机构数据',
+            defaultSelection: 'all'
+        },
+        
+        // 同城模式：仅显示同城5个机构
+        local: {
+            name: '同城',
+            titlePrefix: '四川同城机构',
+            description: '仅显示同城机构数据',
+            defaultSelection: ['天府', '高新', '新都', '青羊', '武侯']
+        },
+        
+        // 异地模式：仅显示异地7个机构
+        remote: {
+            name: '异地',
+            titlePrefix: '四川异地机构',
+            description: '仅显示异地机构数据',
+            defaultSelection: ['宜宾', '泸州', '德阳', '资阳', '乐山', '自贡', '达州']
+        },
+        
+        // 单机构模式：仅显示单个机构
+        single: {
+            name: '单机构',
+            titlePrefix: (selectedOrg) => `${selectedOrg}机构`,
+            description: '仅显示单个机构数据',
+            requiresUserSelection: true
+        },
+        
+        // 多机构模式：自定义多机构选择
+        multi: {
+            name: '多机构',
+            titlePrefix: '四川多机构',
+            description: '用户自定义多机构选择',
+            isDerived: true
+        }
+    },
+
     init(initialData, workerInstance) {
         console.log('Initializing Dashboard...');
         this.data = initialData;
@@ -44,12 +94,17 @@ const Dashboard = {
 
         // Initialize UI components
         this.initTabs();
+        this.initKeyboardNavigation();  // 初始化键盘导航
         this.initFilters();
         this.initDrillSelectors();  // 初始化电商式下拉选择器
         this.initYearSelector();
         this.renderMetadata();  // 渲染元数据预览卡片
         this.renderDrillTags();  // 渲染下钻条件标签
         this.renderKPI();
+        
+        // 更新页面标题（基于组织模式）
+        this.updatePageTitle();
+        
         this.renderChart('overview');
 
         if (!this._resizeHandlerInstalled) {
@@ -60,9 +115,199 @@ const Dashboard = {
             }, 200));
         }
 
+        // Initialize keyboard navigation
+        this.initKeyboardNavigation();
+
         // Show Dashboard
         document.getElementById('uploadContainer').style.display = 'none';
         document.getElementById('dashboardContainer').style.display = 'block';
+    },
+
+    /**
+     * 初始化键盘导航功能
+     * 支持方向键切换标签页，空格键和回车键激活
+     */
+    initKeyboardNavigation() {
+        document.addEventListener('keydown', (e) => {
+            // Tab标签页键盘导航
+            if (!e.target.closest('.drill-dropdown-panel') && !e.target.closest('input')) {
+                const activeTab = document.querySelector('.tab.active');
+                const allTabs = Array.from(document.querySelectorAll('.tab'));
+                const currentIndex = allTabs.indexOf(activeTab);
+                
+                switch(e.key) {
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        // 左右键只移动一格
+                        this.switchTabByIndex(Math.max(0, currentIndex - 1));
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        // 左右键只移动一格
+                        this.switchTabByIndex(Math.min(allTabs.length - 1, currentIndex + 1));
+                        break;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        // 向下键移动到维度按钮
+                        this.navigateToDimensionButtons();
+                        break;
+                    case ' ':
+                    case 'Enter':
+                        e.preventDefault();
+                        // 空格键和回车键重新激活当前tab（刷新数据）
+                        const currentTab = activeTab?.dataset?.tab;
+                        if (currentTab) {
+                            this.renderChart(currentTab);
+                        }
+                        break;
+                }
+            }
+
+            // 维度按钮键盘导航
+            if (e.target.classList.contains('dimension-btn') || e.target.closest('.dimension-btn')) {
+                const dimensionButton = e.target.classList.contains('dimension-btn') ? e.target : e.target.closest('.dimension-btn');
+                const dimensionSwitch = dimensionButton.closest('.dimension-switch');
+                const allButtons = Array.from(dimensionSwitch.querySelectorAll('.dimension-btn'));
+                const currentIndex = allButtons.indexOf(dimensionButton);
+                
+                switch(e.key) {
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        const prevIndex = Math.max(0, currentIndex - 1);
+                        allButtons[prevIndex].click();
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        const nextIndex = Math.min(allButtons.length - 1, currentIndex + 1);
+                        allButtons[nextIndex].click();
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        // 向上键移回到Tab标签
+                        this.navigateToTabFromDimension();
+                        break;
+                }
+            }
+
+            // 子标签页键盘导航（损失暴露板块）
+            if (e.target.closest('.sub-tabs') || document.activeElement?.closest('.sub-tabs')) {
+                const activeSubTab = document.querySelector('.sub-tab.active');
+                const allSubTabs = Array.from(document.querySelectorAll('.sub-tab'));
+                const currentIndex = allSubTabs.indexOf(activeSubTab);
+                
+                switch(e.key) {
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        this.switchSubTabByIndex('loss', Math.max(0, currentIndex - 1));
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        this.switchSubTabByIndex('loss', Math.min(allSubTabs.length - 1, currentIndex + 1));
+                        break;
+                }
+            }
+        });
+    },
+
+    /**
+     * 从维度按钮导航回Tab标签
+     */
+    navigateToTabFromDimension() {
+        const activeTab = document.querySelector('.tab.active');
+        if (activeTab) {
+            activeTab.focus();
+        }
+    },
+
+    /**
+     * 从Tab标签导航到维度按钮
+     */
+    navigateToDimensionButtons() {
+        const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+        
+        // 只有经营概览和损失暴露板块有维度按钮
+        if (activeTab === 'overview' || activeTab === 'loss') {
+            const dimensionButtons = document.querySelector(`#tab-${activeTab} .dimension-switch`);
+            if (dimensionButtons) {
+                const firstButton = dimensionButtons.querySelector('.dimension-btn');
+                if (firstButton) {
+                    firstButton.focus();
+                    // 重新聚焦时移除所有active类，然后添加到第一个按钮
+                    dimensionButtons.querySelectorAll('.dimension-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    firstButton.classList.add('active');
+                }
+            }
+        }
+    },
+
+    /**
+     * 根据索引切换标签页
+     * @param {number} index - 标签页索引
+     */
+    switchTabByIndex(index) {
+        const allTabs = Array.from(document.querySelectorAll('.tab'));
+        if (index < 0 || index >= allTabs.length) return;
+        
+        const targetTab = allTabs[index];
+        const tabName = targetTab.dataset.tab;
+        
+        // 移除所有激活状态
+        allTabs.forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        // 激活目标标签页
+        targetTab.classList.add('active');
+        const targetContent = document.getElementById(`tab-${tabName}`);
+        if (targetContent) {
+            targetContent.classList.add('active');
+        }
+        
+        // 重新渲染图表
+        this.renderChart(tabName);
+    },
+
+    /**
+     * 根据索引切换子标签页
+     * @param {string} parentTab - 父标签页名称
+     * @param {number} index - 子标签页索引
+     */
+    switchSubTabByIndex(parentTab, index) {
+        const allSubTabs = Array.from(document.querySelectorAll('.sub-tab'));
+        if (index < 0 || index >= allSubTabs.length) return;
+        
+        const targetSubTab = allSubTabs[index];
+        const subTabName = targetSubTab.dataset.subtab;
+        
+        // 移除所有激活状态
+        allSubTabs.forEach(tab => tab.classList.remove('active'));
+        
+        // 激活目标子标签页
+        targetSubTab.classList.add('active');
+        
+        // 重新渲染图表
+        this.currentSubTab[parentTab] = subTabName;
+        this.renderChart(parentTab);
+    },
+
+    /**
+     * 赔款贡献度特殊颜色规则
+     * 当赔款贡献度 > 保费贡献度时显示红色，否则显示灰色
+     * @param {Object} dataItem - 数据项
+     * @param {number} index - 索引
+     * @returns {string} 颜色值
+     */
+    getSpecialClaimContributionColor(dataItem, index) {
+        const claimContribution = dataItem.已报告赔款占比 || 0;
+        const premiumContribution = dataItem.保费占比 || 0;
+        
+        // 赔款贡献度 > 保费贡献度时显示红色
+        if (claimContribution > premiumContribution) {
+            return '#c00000';  // 危险红色
+        }
+        
+        return '#808080';  // 默认灰色
     },
 
     formatRate(value, digits = 2) {
@@ -84,6 +329,58 @@ const Dashboard = {
         const num = Number(valueInYuan);
         if (Number.isNaN(num)) return '--';
         return Math.round(num / 10000).toLocaleString();
+    },
+
+    /**
+     * 获取指标的显示名称
+     * @param {string} originalName - 原始名称
+     * @returns {string} 显示名称
+     */
+    getDisplayName(originalName) {
+        return this.displayNameMap[originalName] || originalName;
+    },
+
+    /**
+     * 计算堆积图最佳标签字体大小
+     * 根据数据项数量和标签长度智能调整文字大小
+     * @param {Array} data - 数据数组
+     * @param {number} containerWidth - 容器宽度（可选）
+     * @returns {number} 字体大小（px）
+     */
+    calculateOptimalLabelSize(data, containerWidth = null) {
+        if (!data || data.length === 0) return 12;
+
+        // 获取最长标签的字符数
+        const maxLength = Math.max(...data.map(d => {
+            const name = d.name || d.三级机构 || d.客户类别 || d.ui_short_label || '';
+            return String(name).length;
+        }));
+
+        // 数据项数量
+        const itemCount = data.length;
+
+        // 基础字体大小
+        let baseSize = 12;
+
+        // 根据数据项数量调整
+        if (itemCount > 20) {
+            baseSize = 10;
+        } else if (itemCount > 15) {
+            baseSize = 11;
+        } else if (itemCount > 10) {
+            baseSize = 12;
+        } else {
+            baseSize = 13;
+        }
+
+        // 根据标签长度微调
+        if (maxLength > 8) {
+            baseSize = Math.max(10, baseSize - 1);
+        } else if (maxLength > 6) {
+            baseSize = Math.max(11, baseSize);
+        }
+
+        return baseSize;
     },
 
     setupWorkerBridge() {
@@ -626,7 +923,7 @@ const Dashboard = {
         html += '<thead><tr style="background-color: #f5f5f5;">';
         html += `<th style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${dimField}</th>`;
         indicators.forEach(indicator => {
-            let label = indicator;
+            let label = this.getDisplayName(indicator);
             if (indicator === '签单保费') label = '签单保费(万元)';
             html += `<th style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${label}</th>`;
         });
@@ -677,6 +974,120 @@ const Dashboard = {
                 this.renderChart(tabName);
             });
         });
+    },
+
+    /**
+     * 初始化键盘导航功能
+     * 支持主标签页和二级标签页的方向键切换
+     */
+    initKeyboardNavigation() {
+        // 主标签页键盘导航
+        document.addEventListener('keydown', (e) => {
+            // 如果焦点在输入框或文本域中，不响应键盘导航
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            const activeTab = document.querySelector('.tab.active');
+            const allTabs = Array.from(document.querySelectorAll('.tab'));
+            const currentIndex = allTabs.indexOf(activeTab);
+
+            if (currentIndex === -1) return;
+
+            switch(e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    const prevIndex = Math.max(0, currentIndex - 1);
+                    if (prevIndex !== currentIndex) {
+                        allTabs[prevIndex].click();
+                        allTabs[prevIndex].focus();
+                    }
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    const nextIndex = Math.min(allTabs.length - 1, currentIndex + 1);
+                    if (nextIndex !== currentIndex) {
+                        allTabs[nextIndex].click();
+                        allTabs[nextIndex].focus();
+                    }
+                    break;
+            }
+        });
+
+        // 二级标签页键盘导航（维度切换按钮）
+        document.addEventListener('keydown', (e) => {
+            // 如果焦点在输入框或文本域中，不响应键盘导航
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            // 检查是否在维度切换区域
+            const dimensionContainer = document.querySelector('.dimension-switch');
+            if (!dimensionContainer) return;
+
+            const activeDimensionBtn = dimensionContainer.querySelector('.dimension-btn.active');
+            const allDimensionBtns = Array.from(dimensionContainer.querySelectorAll('.dimension-btn'));
+            const currentDimIndex = allDimensionBtns.indexOf(activeDimensionBtn);
+
+            if (currentDimIndex === -1) return;
+
+            // 使用上下方向键切换维度（避免与主标签页冲突）
+            switch(e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    const prevDimIndex = Math.max(0, currentDimIndex - 1);
+                    if (prevDimIndex !== currentDimIndex) {
+                        allDimensionBtns[prevDimIndex].click();
+                        allDimensionBtns[prevDimIndex].focus();
+                    }
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    const nextDimIndex = Math.min(allDimensionBtns.length - 1, currentDimIndex + 1);
+                    if (nextDimIndex !== currentDimIndex) {
+                        allDimensionBtns[nextDimIndex].click();
+                        allDimensionBtns[nextDimIndex].focus();
+                    }
+                    break;
+            }
+        });
+
+        // 子标签页键盘导航（损失暴露的bubble/freq切换）
+        document.addEventListener('keydown', (e) => {
+            // 如果焦点在输入框或文本域中，不响应键盘导航
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            // 检查是否在子标签页区域
+            const subTabContainer = document.querySelector('.sub-tabs');
+            if (!subTabContainer) return;
+
+            const activeSubTab = subTabContainer.querySelector('.sub-tab.active');
+            const allSubTabs = Array.from(subTabContainer.querySelectorAll('.sub-tab'));
+            const currentSubIndex = allSubTabs.indexOf(activeSubTab);
+
+            if (currentSubIndex === -1) return;
+
+            // 使用Tab键切换子标签页
+            if (e.key === 'Tab' && e.shiftKey) {
+                e.preventDefault();
+                const prevSubIndex = Math.max(0, currentSubIndex - 1);
+                if (prevSubIndex !== currentSubIndex) {
+                    allSubTabs[prevSubIndex].click();
+                    allSubTabs[prevSubIndex].focus();
+                }
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                const nextSubIndex = Math.min(allSubTabs.length - 1, currentSubIndex + 1);
+                if (nextSubIndex !== currentSubIndex) {
+                    allSubTabs[nextSubIndex].click();
+                    allSubTabs[nextSubIndex].focus();
+                }
+            }
+        });
+
+        console.log('✅ 键盘导航已初始化：左右方向键切换主标签，上下方向键切换维度，Tab切换子标签');
     },
 
     switchDimension(tab, dimension) {
@@ -754,6 +1165,9 @@ const Dashboard = {
                 
                 // 重新渲染
                 this.renderKPI();
+
+                // 更新页面标题（基于组织模式）
+                this.updatePageTitle();
 
                 // 获取当前活动的 Tab
                 const activeTab = document.querySelector('.tab.active')?.dataset?.tab || 'overview';
@@ -899,6 +1313,16 @@ const Dashboard = {
         }
     },
 
+    // 区间模式切换器（当前无容器时保持安全空实现）
+    addIntervalModeToggle(reportDateEl) {
+        if (!reportDateEl) return;
+        const toggleEl = document.getElementById('interval-mode-toggle');
+        if (!toggleEl) return;
+        if (!toggleEl.textContent) {
+            toggleEl.textContent = '周次累计';
+        }
+    },
+
     // 渲染元数据预览卡片
     renderMetadata() {
         const info = this.data.dynamicInfo;
@@ -924,6 +1348,9 @@ const Dashboard = {
                 reportDate.textContent = `保单年度：${info.year} | 周次：第${info.week}周`;
             }
         }
+
+        // 添加区间模式切换器（2025-12-21更新）
+        this.addIntervalModeToggle(reportDate);
 
         // 更新简洁元数据信息条
         const metaOrgMode = document.getElementById('meta-org-mode');
@@ -1096,14 +1523,14 @@ const Dashboard = {
         // 遍历数据识别问题维度
         data.forEach(item => {
             const name = item.name;
-            const progress = item.保费时间进度达成率 || 0;
+            const progress = item.保费时间进度达成率;
             const costRate = item.变动成本率 || 0;
             const lossRate = item.满期赔付率 || 0;
             const claimFreq = item.出险率 || 0;
             const expenseRate = item.费用率 || 0;
 
             // 保费进度异常判断
-            if (progress < 95) {
+            if (typeof progress === 'number' && progress < 95) {
                 alerts.premium.push(name);
             }
 
@@ -1251,8 +1678,12 @@ const Dashboard = {
         const lossOrgs = [];
 
         data.forEach(item => {
-            const progress = item.保费时间进度达成率 || 0;
+            const progress = item.保费时间进度达成率;
             const profit = item.边际贡献额 || 0;
+
+            if (typeof progress !== 'number') {
+                return;
+            }
 
             if (progress >= 100 && profit > 0) {
                 goodOrgs.push(item.机构);
@@ -1322,12 +1753,12 @@ const Dashboard = {
                 data.sort((a, b) => (b.满期赔付率 || 0) - (a.满期赔付率 || 0));
             }
         }
-        else if (tab === 'expense') data.sort((a, b) => (b.费用率 || 0) - (a.费用率 || 0));
+        else if (tab === 'expense') data.sort((a, b) => (b.费用额 || 0) - (a.费用额 || 0));
 
         // 保存聚合数据供主题提示使用
         this.aggregatedData = data.map(d => ({
             name: d[dimField],
-            保费时间进度达成率: d.保费时间进度达成率 || 0,
+            保费时间进度达成率: d.保费时间进度达成率 ?? d.年计划达成率 ?? null,
             变动成本率: d.变动成本率 || 0,
             满期赔付率: d.满期赔付率 || 0,
             出险率: d.出险率 || 0,
@@ -1349,54 +1780,48 @@ const Dashboard = {
         
         if (tab === 'overview') {
             const globalOptions = this.getGlobalChartOptions();
-            
-            // 判断是否应该显示保费时间进度达成率折线图
-            const shouldShowProgressLine = this.shouldShowPremiumProgressLine(dimension);
-            
-            // 准备堆叠图数据
-            const claimRates = data.map(d => d.满期赔付率 || 0);  // 满期赔付率（底部）
-            const expenseRates = data.map(d => d.费用率 || 0); // 费用率（上部）
-            const achievementRates = data.map(d => d.年计划达成率 || 0); // 保费达成率
-            
-            // 构建基础配置
+
+            // 准备图表数据
+            const claimRates = data.map(d => d.满期赔付率 || 0);  // 满期赔付率
+            const expenseRates = data.map(d => d.费用率 || 0);   // 费用率
+
+            // 根据维度决定折线图数据系列
+            let lineSeriesData, lineSeriesName, lineSeriesColor;
+            if (dimension === 'org') {
+                // 三级机构维度：使用保费时间进度达成率折线图
+                lineSeriesData = data.map(d => d.保费时间进度达成率 ?? d.年计划达成率 ?? null);
+                lineSeriesName = '保费时间进度达成率';
+                lineSeriesColor = '#0066cc';  // 深蓝色
+            } else {
+                // 客户类别/业务类型维度：使用保费贡献度折线图
+                lineSeriesData = data.map(d => d.保费占比 || 0);
+                lineSeriesName = '保费贡献度';
+                lineSeriesColor = '#0066cc';  // 深蓝色
+            }
+
+            // 构建双Y轴配置：左轴堆积图（满期赔付率+费用率），右轴折线图
             option = {
                 tooltip: {
                     trigger: 'axis',
                     textStyle: { fontWeight: 'bold' },
                     formatter: (params) => {
                         let result = `${params[0].axisValue}<br/>`;
-                        
-                        // 堆叠柱状图数据
-                        const barParams = params.filter(p => p.seriesType === 'bar');
-                        if (barParams.length > 0) {
-                            const claimParam = barParams.find(p => p.seriesName === '满期赔付率');
-                            const expenseParam = barParams.find(p => p.seriesName === '费用率');
-                            
-                            if (claimParam) {
-                                result += `${claimParam.marker}满期赔付率: ${this.formatRate(claimParam.value, 1)}%<br/>`;
+
+                        params.forEach(param => {
+                            if (param.seriesName === '满期赔付率') {
+                                result += `${param.marker}满期赔付率: ${this.formatRate(param.value, 1)}%<br/>`;
+                            } else if (param.seriesName === '费用率') {
+                                result += `${param.marker}费用率: ${this.formatRate(param.value, 1)}%<br/>`;
+                            } else if (param.seriesName === lineSeriesName) {
+                                result += `${param.marker}${lineSeriesName}: ${this.formatRate(param.value, 1)}%<br/>`;
                             }
-                            if (expenseParam) {
-                                result += `${expenseParam.marker}费用率: ${this.formatRate(expenseParam.value, 1)}%<br/>`;
-                            }
-                            
-                            // 显示总变动成本率
-                            const totalCostRate = (claimParam?.value || 0) + (expenseParam?.value || 0);
-                            result += `变动成本率: ${this.formatRate(totalCostRate, 1)}%<br/>`;
-                        }
-                        
-                        // 保费进度柱状图数据（如果存在）
-                        const progressParams = params.filter(p => p.seriesName === '保费时间进度达成率');
-                        if (progressParams.length > 0) {
-                            result += `${progressParams[0].marker}保费时间进度达成率: ${this.formatRate(progressParams[0].value, 1)}%<br/>`;
-                        }
-                        
+                        });
+
                         return result;
                     }
                 },
                 legend: {
-                    data: shouldShowProgressLine ? 
-                        ['满期赔付率', '费用率', '保费时间进度达成率'] : 
-                        ['满期赔付率', '费用率'],
+                    data: ['满期赔付率', '费用率', lineSeriesName],
                     ...globalOptions.legend
                 },
                 grid: globalOptions.grid,
@@ -1408,9 +1833,18 @@ const Dashboard = {
                 yAxis: [
                     {
                         type: 'value',
-                        name: '成本率(%)',
-                        max: 120, // 给堆叠图留出足够空间
+                        name: '占比(%)',
+                        min: 0,
+                        max: dimension === 'org' ? 150 : 100,  // 与右轴保持一致，避免视觉误导
                         position: 'left',
+                        ...globalOptions.yAxis
+                    },
+                    {
+                        type: 'value',
+                        name: lineSeriesName + '(%)',
+                        min: 0,
+                        max: dimension === 'org' ? 150 : 100,  // 保费时间进度达成率最高150%，保费贡献度最高100%
+                        position: 'right',
                         ...globalOptions.yAxis
                     }
                 ],
@@ -1418,93 +1852,100 @@ const Dashboard = {
                     {
                         name: '满期赔付率',
                         type: 'bar',
-                        stack: 'cost',
                         yAxisIndex: 0,
-                        data: claimRates.map((rate, index) => ({
-                            value: rate,
-                            itemStyle: {
-                                color: this.getStackedBarColor('满期赔付率', rate)
-                            }
-                        })),
+                        data: claimRates,
+                        itemStyle: { color: '#87ceeb' },  // 浅蓝色
                         label: {
                             show: true,
-                            position: 'inside',
+                            position: 'inside',  // 在柱内显示
                             formatter: (p) => `${this.formatRate(p.value, 1)}%`,
-                            color: '#fff',
-                            fontWeight: 'bold'
-                        }
+                            fontSize: this.calculateOptimalLabelSize(data),
+                            color: '#333333'  // 深色字体便于阅读
+                        },
+                        stack: 'rates'  // 启用堆积
                     },
                     {
                         name: '费用率',
                         type: 'bar',
-                        stack: 'cost',
                         yAxisIndex: 0,
-                        data: expenseRates.map((rate, index) => ({
-                            value: rate,
-                            itemStyle: {
-                                color: this.getStackedBarColor('费用率', rate)
-                            }
-                        })),
+                        data: expenseRates,
+                        itemStyle: { color: '#d3d3d3' },  // 浅灰色
                         label: {
                             show: true,
-                            position: 'inside',
+                            position: 'inside',  // 在柱内显示
                             formatter: (p) => `${this.formatRate(p.value, 1)}%`,
-                            color: '#fff',
-                            fontWeight: 'bold'
+                            fontSize: this.calculateOptimalLabelSize(data),
+                            color: '#333333'  // 深色字体便于阅读
+                        },
+                        stack: 'rates',  // 启用堆积
+                        markLine: {
+                            silent: false,
+                            symbol: 'none',
+                            data: [
+                                {
+                                    yAxis: 91,
+                                    name: '变动成本率预警线',
+                                    lineStyle: {
+                                        color: '#ffc000',
+                                        type: 'dashed',
+                                        width: 2,
+                                        opacity: 0.8
+                                    },
+                                    label: {
+                                        formatter: '变动成本率: {c}%',
+                                        fontWeight: 'bold',
+                                        color: '#ffc000',
+                                        fontSize: 12,
+                                        position: 'end'
+                                    }
+                                },
+                                {
+                                    yAxis: 72,
+                                    name: '满期赔付率预警线',
+                                    lineStyle: {
+                                        color: '#ffc000',
+                                        type: 'dashed',
+                                        width: 2,
+                                        opacity: 0.8
+                                    },
+                                    label: {
+                                        formatter: '满期赔付率: {c}%',
+                                        fontWeight: 'bold',
+                                        color: '#ffc000',
+                                        fontSize: 12,
+                                        position: 'end'
+                                    }
+                                }
+                            ]
                         }
-                    }
-                ]
-            };
-            
-            // 如果需要显示保费进度折线图，添加右Y轴和折线系列
-            if (shouldShowProgressLine) {
-                option.yAxis.push({
-                    type: 'value',
-                    name: '达成率(%)',
-                    max: 150, // 达成率可能超过100%
-                    position: 'right',
-                    ...globalOptions.yAxis
-                });
-                
-                option.series.push({
-                    name: '保费时间进度达成率',
-                    type: 'bar',
-                    yAxisIndex: 1,
-                    data: achievementRates.map((rate, index) => ({
-                        value: rate,
-                        itemStyle: { color: '#ff4d4f' } // 红色
-                    })),
-                    label: {
-                        show: true,
-                        position: 'top',
-                        formatter: (p) => `${this.formatRate(p.value, 1)}%`,
-                        color: '#ff4d4f',
-                        fontWeight: 'bold'
-                    }
-                });
-            }
-            
-            // 添加预警线（变动成本率91%）
-            option.series[0].markLine = {
-                silent: false,
-                symbol: 'none',
-                data: [
+                    },
                     {
-                        yAxis: 91,
-                        name: '预警线',
+                        name: lineSeriesName,
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: lineSeriesData,
                         lineStyle: {
-                            color: '#ffc000',
-                            type: 'dashed',
-                            width: 2,
-                            opacity: 0.8
+                            color: lineSeriesColor,  // 深蓝色连线
+                            width: 2
+                        },
+                        itemStyle: {
+                            color: lineSeriesColor,
+                            borderWidth: 2
                         },
                         label: {
-                            formatter: '预警线: {c}%',
-                            fontWeight: 'bold',
-                            color: '#ffc000',
-                            fontSize: 12,
-                            position: 'end'
-                        }
+                            show: true,
+                            position: 'top',  // 在数据点上方显示
+                            formatter: (p) => {
+                                // 确保百分比格式正确
+                                if (p.value === null || p.value === undefined) return '';
+                                return `${this.formatRate(p.value, 1)}%`;
+                            },
+                            color: lineSeriesColor,  // 深蓝色字体
+                            fontSize: this.calculateOptimalLabelSize(data),
+                            fontWeight: 'bold'  // 加粗突出显示
+                        },
+                        symbolSize: 6,  // 数据点大小
+                        smooth: false
                     }
                 ]
             };
@@ -1682,26 +2123,30 @@ const Dashboard = {
                         }
                     ],
                     legend: {
-                        data: ['保费占比', '已报告赔款占比', '满期赔付率'],
+                        data: [this.getDisplayName('保费占比'), this.getDisplayName('已报告赔款占比'), '满期赔付率'],
                         top: 0,
                         textStyle: { fontWeight: 'bold' }
                     },
                     series: [
                         {
-                            name: '保费占比',
+                            name: this.getDisplayName('保费占比'),
                             type: 'bar',
                             yAxisIndex: 0,
                             data: data.map(d => d.保费占比 || 0),
-                            itemStyle: { color: '#0070c0' },
+                            itemStyle: { color: '#808080' },  // 灰色
                             label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` },
                             labelLayout: { moveOverlap: 'shiftY' }
                         },
                         {
-                            name: '已报告赔款占比',
+                            name: this.getDisplayName('已报告赔款占比'),
                             type: 'bar',
                             yAxisIndex: 0,
-                            data: data.map(d => d.已报告赔款占比 || 0),
-                            itemStyle: { color: '#92d050' },
+                            data: data.map((d, index) => ({
+                                value: d.已报告赔款占比 || 0,
+                                itemStyle: { 
+                                    color: this.getSpecialClaimContributionColor(d, index)  // 特殊颜色规则
+                                }
+                            })),
                             label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` },
                             labelLayout: { moveOverlap: 'shiftY' }
                         },
@@ -1710,8 +2155,8 @@ const Dashboard = {
                             type: 'line',
                             yAxisIndex: 1,
                             data: data.map(d => d.满期赔付率 || 0),
-                            itemStyle: { color: '#c00000' },
-                            lineStyle: { color: '#c00000', width: 3 },
+                            itemStyle: { color: '#808080' },  // 灰色连线
+                            lineStyle: { color: '#808080', width: 3 },  // 灰色连线
                             label: { show: true, position: 'top', formatter: (p) => `${this.formatRate(p.value, 1)}%` },
                             labelLayout: { moveOverlap: 'shiftY' },
                             markLine: {
@@ -1808,8 +2253,9 @@ const Dashboard = {
                 chartDom.parentElement.appendChild(tableContainer.firstChild);
             }
         } else if (tab === 'expense') {
-            const expenseRates = data.map(d => d.费用率 || 0);
-            const normalizedExpenseRates = this.normalizeBarHeights(expenseRates);
+            // 费用支出板块（2025-12-21修改：去掉费用金额占比，调整颜色）
+            const expenseAmounts = data.map(d => d.费用额 || 0);  // 费用金额（左轴柱状图）
+            const expenseRates = data.map(d => d.费用率 || 0);     // 费用率（右轴折线图）
             const globalOptions = this.getGlobalChartOptions();
 
             option = {
@@ -1817,11 +2263,22 @@ const Dashboard = {
                     trigger: 'axis',
                     textStyle: { fontWeight: 'bold' },
                     formatter: (params) => {
-                        const p = params?.[0];
-                        const point = p?.data;
-                        if (!point) return '';
-                        return `${p.axisValue}<br/>费用率: ${this.formatRate(point.actual, 1)}%`;
+                        let result = `${params[0].axisValue}<br/>`;
+                        
+                        params.forEach(param => {
+                            if (param.seriesName === '费用金额') {
+                                result += `${param.marker}费用金额: ${this.formatWanYuanFromYuan(param.value)}万元<br/>`;
+                            } else if (param.seriesName === '费用率') {
+                                result += `${param.marker}费用率: ${this.formatRate(param.value, 1)}%<br/>`;
+                            }
+                        });
+                        
+                        return result;
                     }
+                },
+                legend: {
+                    data: ['费用金额', '费用率'],
+                    ...globalOptions.legend
                 },
                 grid: globalOptions.grid,
                 xAxis: {
@@ -1829,50 +2286,85 @@ const Dashboard = {
                     data: data.map(d => d[dimField]),
                     ...globalOptions.xAxis
                 },
-                yAxis: {
-                    type: 'value',
-                    name: '费用率(%)',
-                    ...globalOptions.yAxis
-                },
-                series: [{
-                    type: 'bar',
-                    data: data.map((d, index) => ({
-                        value: normalizedExpenseRates[index],
-                        actual: expenseRates[index],
-                        itemStyle: {
-                            color: d.费用率 > 17 ? '#c00000' : d.费用率 > 14 ? '#ffc000' : '#00b050'
-                        }
-                    })),
-                    label: {
-                        show: true,
-                        position: 'top',
-                        formatter: (p) => `${this.formatRate(p.data.actual, 1)}%`
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '费用金额(万元)',
+                        position: 'left',
+                        ...globalOptions.yAxis
                     },
-                    labelLayout: { moveOverlap: 'shiftY' },
-                    markLine: {
-                        silent: false,
-                        symbol: 'none',
-                        data: [
-                            {
-                                yAxis: 14,
-                                name: '预警线',
-                                lineStyle: {
-                                    color: '#ffc000',
-                                    type: 'dashed',
-                                    width: 2,
-                                    opacity: 0.8
-                                },
-                                label: {
-                                    formatter: '预警线: {c}%',
-                                    fontWeight: 'bold',
-                                    color: '#ffc000',
-                                    fontSize: 12,
-                                    position: 'end'
-                                }
-                            }
-                        ]
+                    {
+                        type: 'value',
+                        name: '比率(%)',
+                        position: 'right',
+                        ...globalOptions.yAxis
                     }
-                }]
+                ],
+                series: [
+                    {
+                        name: '费用金额',
+                        type: 'bar',
+                        yAxisIndex: 0,
+                        data: expenseAmounts,
+                        itemStyle: { color: '#808080' },  // 灰色
+                        label: {
+                            show: true,
+                            position: 'top',
+                            formatter: (p) => `${this.formatWanYuanFromYuan(p.value)}万`,
+                            color: '#000000',  // 黑色字体
+                            fontSize: this.calculateOptimalLabelSize(data),
+                            fontWeight: 'bold'
+                        }
+                    },
+                    {
+                        name: '费用率',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: expenseRates,
+                        lineStyle: {
+                            color: '#0066cc',  // 深蓝色
+                            width: 2
+                        },
+                        itemStyle: {
+                            color: '#0066cc'
+                        },
+                        label: {
+                            show: true,
+                            position: 'top',
+                            formatter: (p) => `${this.formatRate(p.value, 1)}%`,
+                            color: '#0066cc',  // 深蓝色字体
+                            fontSize: this.calculateOptimalLabelSize(data),
+                            fontWeight: 'bold'
+                        },
+                        symbolSize: 6,
+                        smooth: false
+                    }
+                ]
+            };
+
+            // 为费用率添加预警线（14%）
+            option.series[1].markLine = {
+                silent: false,
+                symbol: 'none',
+                data: [
+                    {
+                        yAxis: 14,
+                        name: '费用率预警线',
+                        lineStyle: {
+                            color: '#ffc000',
+                            type: 'dashed',
+                            width: 2,
+                            opacity: 0.8
+                        },
+                        label: {
+                            formatter: '费用率预警线: {c}%',
+                            fontWeight: 'bold',
+                            color: '#ffc000',
+                            fontSize: 12,
+                            position: 'end'
+                        }
+                    }
+                ]
             };
         }
 
@@ -1907,8 +2399,25 @@ const Dashboard = {
 
     getDrillDownDimensions() {
         return [
-            // Group 1: Core Organization (Rank 1)
-            { key: 'third_level_organization', label: '三级机构', group: 1 },
+            // Group 1: Core Organization (Rank 1) - 支持同城/异地分组
+            {
+                key: 'third_level_organization',
+                label: '三级机构',
+                group: 1,
+                hasGrouping: true,  // 启用分组功能
+                groupOptions: [
+                    {
+                        value: 'local',
+                        label: '同城',
+                        children: ['天府', '新都', '高新', '武侯', '青羊', '金牛', '成华', '龙泉', '双流', '温江']
+                    },
+                    {
+                        value: 'remote',
+                        label: '异地',
+                        children: ['宜宾', '泸州', '达州', '资阳', '德阳', '乐山', '自贡', '绵阳', '南充', '内江', '遂宁', '广元', '巴中', '眉山', '雅安']
+                    }
+                ]
+            },
             
             // Group 2: Time Dimension
             { key: 'policy_start_year', label: '保单年度', group: 2 },
@@ -2069,63 +2578,64 @@ const Dashboard = {
     },
 
     initAnalysisModeToggles() {
-        // Create Toggle Container if not exists
+        // 创建筛选控制行容器（如果不存在）
+        let controlsRow = document.querySelector('.filter-controls-row');
+        if (!controlsRow) {
+            const filterControlBar = document.querySelector('.filter-control-bar');
+            controlsRow = document.createElement('div');
+            controlsRow.className = 'filter-controls-row';
+            
+            // 将所有现有的filter-section移动到这个容器中
+            const filterSections = filterControlBar.querySelectorAll('.filter-section, .drill-selector-section');
+            filterSections.forEach(section => {
+                controlsRow.appendChild(section);
+            });
+            
+            filterControlBar.appendChild(controlsRow);
+        }
+
+        // Create Toggle Container if not exists - 移动到header区域
         let toggleContainer = document.getElementById('analysis-mode-toggles');
         if (!toggleContainer) {
-            const filterSection = document.querySelector('.filter-section').parentNode;
+            const header = document.querySelector('.header');
             toggleContainer = document.createElement('div');
             toggleContainer.id = 'analysis-mode-toggles';
             toggleContainer.className = 'analysis-mode-toggles';
-            toggleContainer.style.display = 'flex';
-            toggleContainer.style.gap = '20px';
-            toggleContainer.style.marginBottom = '15px';
-            toggleContainer.style.padding = '10px';
-            toggleContainer.style.backgroundColor = '#f8f9fa';
-            toggleContainer.style.borderRadius = '8px';
-            filterSection.insertBefore(toggleContainer, filterSection.firstChild);
+            
+            // 在reportDate后面插入
+            const reportDate = document.getElementById('reportDate');
+            if (reportDate) {
+                reportDate.parentNode.insertBefore(toggleContainer, reportDate.nextSibling);
+            } else {
+                header.appendChild(toggleContainer);
+            }
         }
 
-        // 1. Org Mode Toggle
-        const orgModeHtml = `
-            <div class="mode-toggle-group">
-                <span class="mode-label" style="font-weight:bold; margin-right:8px;">组织模式:</span>
-                <label><input type="radio" name="mode-org" value="multi" checked> 多机构</label>
-                <label style="margin-left:10px;"><input type="radio" name="mode-org" value="single"> 单机构</label>
-            </div>
-        `;
-
-        // 2. Interval Mode Toggle
+        // 区间模式切换器（2025-12-21修改：移除组织模式，只保留区间模式）
         const intervalModeHtml = `
             <div class="mode-toggle-group">
-                <span class="mode-label" style="font-weight:bold; margin-right:8px;">区间模式:</span>
+                <span class="mode-label">区间模式:</span>
                 <label><input type="radio" name="mode-interval" value="single" checked> 单周</label>
-                <label style="margin-left:10px;"><input type="radio" name="mode-interval" value="multi"> 多周</label>
+                <label><input type="radio" name="mode-interval" value="multi"> 多周</label>
             </div>
         `;
 
-        toggleContainer.innerHTML = orgModeHtml + intervalModeHtml;
+        toggleContainer.innerHTML = intervalModeHtml;
 
         // Add Listeners
-        toggleContainer.querySelectorAll('input[name="mode-org"]').forEach(input => {
-            input.addEventListener('change', (e) => this.setAnalysisMode('org', e.target.value));
-        });
         toggleContainer.querySelectorAll('input[name="mode-interval"]').forEach(input => {
             input.addEventListener('change', (e) => this.setAnalysisMode('interval', e.target.value));
         });
 
         // Initialize State
-        this.analysisMode = { org: 'multi', interval: 'single' };
+        this.analysisMode = { interval: 'single' };
     },
 
     setAnalysisMode(type, value) {
         this.analysisMode[type] = value;
         
-        // Handle logic changes
-        if (type === 'org') {
-            // Update selection behavior for Org filter
-            // Re-render selectors to apply single/multi logic
-            this.renderDrillSelectors();
-        } else if (type === 'interval') {
+        // Handle logic changes（2025-12-21更新：移除组织模式逻辑）
+        if (type === 'interval') {
             // Update selection behavior for Time filters
             this.renderDrillSelectors();
         }
@@ -2137,13 +2647,8 @@ const Dashboard = {
     },
 
     enforceSingleSelectionMode(type) {
-        if (type === 'org') {
-            const orgDraft = this.filterState.drill.draft['third_level_organization'];
-            if (orgDraft && orgDraft.length > 1) {
-                this.filterState.drill.draft['third_level_organization'] = [orgDraft[0]];
-                this.applyDrillFilters();
-            }
-        } else if (type === 'interval') {
+        // 2025-12-21更新：移除组织模式单选逻辑，只保留区间模式
+        if (type === 'interval') {
             ['policy_start_year', 'week_number'].forEach(key => {
                 const draft = this.filterState.drill.draft[key];
                 if (draft && draft.length > 1) {
@@ -2270,10 +2775,231 @@ const Dashboard = {
         this.activeDropdown = null;
     },
 
+    /**
+     * 渲染分组下拉选择器（同城/异地）
+     * @param {string} dimensionKey - 维度key
+     * @param {Object} dimConfig - 维度配置
+     * @param {HTMLElement} container - 容器元素
+     */
+    renderGroupedDropdown(dimensionKey, dimConfig, container) {
+        const currentSelection = this.filterState.drill.draft[dimensionKey] || [];
+
+        dimConfig.groupOptions.forEach(group => {
+            // 创建分组容器
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'drill-group-container';
+
+            // 分组标题（全选checkbox）
+            const groupHeader = document.createElement('div');
+            groupHeader.className = 'drill-group-header';
+
+            const groupCheckbox = document.createElement('input');
+            groupCheckbox.type = 'checkbox';
+            groupCheckbox.className = 'drill-group-checkbox';
+            groupCheckbox.id = `group-${dimensionKey}-${group.value}`;
+
+            // 检查是否所有子选项都被选中
+            const allChildrenSelected = group.children.every(child => currentSelection.includes(child));
+            const someChildrenSelected = group.children.some(child => currentSelection.includes(child));
+            groupCheckbox.checked = allChildrenSelected;
+            groupCheckbox.indeterminate = someChildrenSelected && !allChildrenSelected;
+
+            const groupLabel = document.createElement('label');
+            groupLabel.htmlFor = groupCheckbox.id;
+            groupLabel.className = 'drill-group-label';
+            groupLabel.textContent = `${group.label} (${group.children.length}个机构)`;
+
+            groupCheckbox.addEventListener('change', () => {
+                this.toggleGroup(dimensionKey, group.value, group.children, groupCheckbox.checked);
+            });
+
+            groupHeader.appendChild(groupCheckbox);
+            groupHeader.appendChild(groupLabel);
+            groupDiv.appendChild(groupHeader);
+
+            // 子选项列表
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'drill-group-children';
+
+            group.children.forEach(child => {
+                const childDiv = document.createElement('div');
+                childDiv.className = 'drill-dropdown-item drill-group-child-item';
+
+                const childCheckbox = document.createElement('input');
+                childCheckbox.type = 'checkbox';
+                childCheckbox.value = child;
+                childCheckbox.checked = currentSelection.includes(child);
+                childCheckbox.id = `drill-${dimensionKey}-${child}`;
+                childCheckbox.dataset.group = group.value;
+
+                const childLabel = document.createElement('label');
+                childLabel.htmlFor = childCheckbox.id;
+                childLabel.textContent = child;
+
+                childCheckbox.addEventListener('change', () => {
+                    this.handleGroupedValueSelection(dimensionKey, child, childCheckbox.checked, group.value);
+                });
+
+                childDiv.appendChild(childCheckbox);
+                childDiv.appendChild(childLabel);
+                childrenContainer.appendChild(childDiv);
+            });
+
+            groupDiv.appendChild(childrenContainer);
+            container.appendChild(groupDiv);
+        });
+    },
+
+    /**
+     * 切换分组选择
+     * @param {string} dimensionKey - 维度key
+     * @param {string} groupValue - 分组值 (local/remote)
+     * @param {Array} children - 分组包含的子选项
+     * @param {boolean} checked - 是否选中
+     */
+    toggleGroup(dimensionKey, groupValue, children, checked) {
+        if (!this.filterState.drill.draft[dimensionKey]) {
+            this.filterState.drill.draft[dimensionKey] = [];
+        }
+
+        if (checked) {
+            // 选中整个分组
+            children.forEach(child => {
+                if (!this.filterState.drill.draft[dimensionKey].includes(child)) {
+                    this.filterState.drill.draft[dimensionKey].push(child);
+                }
+            });
+
+            // 禁用另一个分组
+            const otherGroup = groupValue === 'local' ? 'remote' : 'local';
+            this.disableGroup(dimensionKey, otherGroup);
+        } else {
+            // 取消选中整个分组
+            children.forEach(child => {
+                this.filterState.drill.draft[dimensionKey] =
+                    this.filterState.drill.draft[dimensionKey].filter(v => v !== child);
+            });
+
+            // 启用另一个分组
+            const otherGroup = groupValue === 'local' ? 'remote' : 'local';
+            this.enableGroup(dimensionKey, otherGroup);
+        }
+
+        // 更新UI
+        this.updateGroupUI(dimensionKey);
+        this.updateSelectorButtonUI(dimensionKey);
+    },
+
+    /**
+     * 处理分组内的值选择
+     * @param {string} dimensionKey - 维度key
+     * @param {string} value - 选中的值
+     * @param {boolean} checked - 是否选中
+     * @param {string} groupValue - 所属分组
+     */
+    handleGroupedValueSelection(dimensionKey, value, checked, groupValue) {
+        if (!this.filterState.drill.draft[dimensionKey]) {
+            this.filterState.drill.draft[dimensionKey] = [];
+        }
+
+        if (checked) {
+            // 添加值
+            if (!this.filterState.drill.draft[dimensionKey].includes(value)) {
+                this.filterState.drill.draft[dimensionKey].push(value);
+            }
+
+            // 如果选中任何值，禁用另一个分组
+            const otherGroup = groupValue === 'local' ? 'remote' : 'local';
+            this.disableGroup(dimensionKey, otherGroup);
+        } else {
+            // 移除值
+            this.filterState.drill.draft[dimensionKey] =
+                this.filterState.drill.draft[dimensionKey].filter(v => v !== value);
+
+            // 如果当前分组没有任何选中，启用另一个分组
+            const dimConfig = this.getDrillDownDimensions().find(d => d.key === dimensionKey);
+            const currentGroup = dimConfig.groupOptions.find(g => g.value === groupValue);
+            const hasSelection = currentGroup.children.some(child =>
+                this.filterState.drill.draft[dimensionKey].includes(child)
+            );
+
+            if (!hasSelection) {
+                const otherGroup = groupValue === 'local' ? 'remote' : 'local';
+                this.enableGroup(dimensionKey, otherGroup);
+            }
+        }
+
+        // 更新UI
+        this.updateGroupUI(dimensionKey);
+        this.updateSelectorButtonUI(dimensionKey);
+    },
+
+    /**
+     * 禁用分组
+     */
+    disableGroup(dimensionKey, groupValue) {
+        const groupCheckbox = document.getElementById(`group-${dimensionKey}-${groupValue}`);
+        const childCheckboxes = document.querySelectorAll(`input[data-group="${groupValue}"]`);
+
+        if (groupCheckbox) {
+            groupCheckbox.disabled = true;
+            groupCheckbox.parentElement.style.opacity = '0.5';
+        }
+
+        childCheckboxes.forEach(checkbox => {
+            checkbox.disabled = true;
+        });
+    },
+
+    /**
+     * 启用分组
+     */
+    enableGroup(dimensionKey, groupValue) {
+        const groupCheckbox = document.getElementById(`group-${dimensionKey}-${groupValue}`);
+        const childCheckboxes = document.querySelectorAll(`input[data-group="${groupValue}"]`);
+
+        if (groupCheckbox) {
+            groupCheckbox.disabled = false;
+            groupCheckbox.parentElement.style.opacity = '1';
+        }
+
+        childCheckboxes.forEach(checkbox => {
+            checkbox.disabled = false;
+        });
+    },
+
+    /**
+     * 更新分组UI状态
+     */
+    updateGroupUI(dimensionKey) {
+        const dimConfig = this.getDrillDownDimensions().find(d => d.key === dimensionKey);
+        if (!dimConfig || !dimConfig.hasGrouping) return;
+
+        const currentSelection = this.filterState.drill.draft[dimensionKey] || [];
+
+        dimConfig.groupOptions.forEach(group => {
+            const groupCheckbox = document.getElementById(`group-${dimensionKey}-${group.value}`);
+            if (!groupCheckbox) return;
+
+            const allChildrenSelected = group.children.every(child => currentSelection.includes(child));
+            const someChildrenSelected = group.children.some(child => currentSelection.includes(child));
+
+            groupCheckbox.checked = allChildrenSelected;
+            groupCheckbox.indeterminate = someChildrenSelected && !allChildrenSelected;
+        });
+    },
+
     // 加载下拉值列表
     loadDropdownValues(dimensionKey) {
         const listContainer = document.getElementById('drill-dropdown-list');
         listContainer.innerHTML = '';
+
+        // 检查是否是分组维度
+        const dimConfig = this.getDrillDownDimensions().find(d => d.key === dimensionKey);
+        if (dimConfig && dimConfig.hasGrouping) {
+            this.renderGroupedDropdown(dimensionKey, dimConfig, listContainer);
+            return;
+        }
 
         // 业务类型添加快捷选择按钮
         if (dimensionKey === 'ui_short_label') {
@@ -2628,6 +3354,104 @@ const Dashboard = {
         
         // 如果没有机构筛选或选择了至少一个机构，都可以显示
         return !orgFilter || orgFilter.values.length > 0;
+    },
+
+    // ====== 组织模式系统（2025-12-21新增） ======
+
+    /**
+     * 根据当前选择的机构判断组织模式
+     * @param {Array} selectedOrgs - 用户选择的机构列表
+     * @param {Array} allOrgs - 所有可用机构列表
+     * @returns {Object} 当前组织模式配置
+     */
+    detectOrganizationMode(selectedOrgs, allOrgs) {
+        const selectionCount = selectedOrgs.length;
+        const totalCount = allOrgs.length;
+        
+        // 单机构模式
+        if (selectionCount === 1) {
+            return {
+                ...this.organizationModes.single,
+                currentOrg: selectedOrgs[0]
+            };
+        }
+        
+        // 同城模式检查
+        const localOrgs = ['天府', '高新', '新都', '青羊', '武侯'];
+        const isLocalMode = selectionCount === localOrgs.length && 
+                          selectedOrgs.every(org => localOrgs.includes(org));
+        
+        if (isLocalMode) {
+            return this.organizationModes.local;
+        }
+        
+        // 异地模式检查
+        const remoteOrgs = ['宜宾', '泸州', '德阳', '资阳', '乐山', '自贡', '达州'];
+        const isRemoteMode = selectionCount === remoteOrgs.length && 
+                           selectedOrgs.every(org => remoteOrgs.includes(org));
+        
+        if (isRemoteMode) {
+            return this.organizationModes.remote;
+        }
+        
+        // 分公司模式（全部选择）
+        if (selectionCount === totalCount) {
+            return this.organizationModes.branch;
+        }
+        
+        // 多机构模式（其他自定义选择）
+        return {
+            ...this.organizationModes.multi,
+            selectedOrgs: selectedOrgs
+        };
+    },
+
+    /**
+     * 根据组织模式生成页面标题
+     * @param {Object} modeConfig - 组织模式配置
+     * @param {Object} context - 上下文信息（周次、年份等）
+     * @returns {string} 页面标题
+     */
+    generatePageTitle(modeConfig, context) {
+        const { week, year, company = '四川' } = context;
+        
+        if (typeof modeConfig.titlePrefix === 'function') {
+            // 单机构模式的动态标题
+            const prefix = modeConfig.titlePrefix(modeConfig.currentOrg);
+            return `${prefix}车险第${week}周经营分析`;
+        } else {
+            // 其他模式的固定标题
+            return `${modeConfig.titlePrefix}车险第${week}周经营分析`;
+        }
+    },
+
+    /**
+     * 更新页面标题（基于当前选择）
+     */
+    updatePageTitle() {
+        // 获取当前选择的机构
+        const orgFilter = this.filterState.drill.applied.find(f => f.dimension === 'third_level_organization');
+        const selectedOrgs = orgFilter ? orgFilter.values : [];
+        
+        // 获取所有机构列表
+        const allOrgs = this.data.organizations || [];
+        
+        // 检测组织模式
+        const modeConfig = this.detectOrganizationMode(selectedOrgs, allOrgs);
+        
+        // 获取上下文信息
+        const context = {
+            week: this.data.week || '50',
+            year: this.data.year || '2025',
+            company: '四川'
+        };
+        
+        // 生成并更新标题
+        const newTitle = this.generatePageTitle(modeConfig, context);
+        const titleElement = document.getElementById('mainTitle');
+        if (titleElement) {
+            titleElement.textContent = newTitle;
+        }
     }
 };
 

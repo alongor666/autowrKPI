@@ -131,7 +131,7 @@ vim src/data_loader.py
 vim 开发文档/01_features/F001_csv_parsing/meta.json
 
 # 4. 重新生成索引
-python3 scripts/generate_docs_index.py 开发文档
+node "tools/update-docs.js"
 
 # 5. 提交变更
 git add .
@@ -236,7 +236,7 @@ chmod +x .githooks/pre-push
 
 ### AI 协作者职责
 - ✅ 修改前先读取 KNOWLEDGE_INDEX.md 定位功能
-- ✅ 修改后运行 `python3 scripts/generate_docs_index.py 开发文档` 更新索引
+- ✅ 修改后运行 `node "tools/update-docs.js"` 更新索引
 - ✅ 保持元数据与代码的一致性
 
 ---
@@ -247,7 +247,7 @@ chmod +x .githooks/pre-push
 1. 创建 `01_features/F00X_功能名称/` 目录
 2. 编写 `meta.json` 和 `README.md`
 3. 实现代码功能
-4. 运行 `python3 scripts/generate_docs_index.py 开发文档` 更新索引
+4. 运行 `node "tools/update-docs.js"` 更新索引
 
 ### Q: meta.json 中的路径是相对还是绝对？
 - 使用相对于项目根目录的路径
@@ -262,7 +262,7 @@ chmod +x .githooks/pre-push
 ## 版本历史
 
 ### v2.0.1 (2025-12-15)
-- 对齐仓库实际脚本：索引生成以 `scripts/generate_docs_index.py` 为准
+- 对齐仓库实际脚本：索引生成以 `tools/update-docs.js` 为准
 - 新增开发记录约定：推荐使用 `开发文档/reports/DEVLOG.md` 追踪变更
 - 更新 Python 版本范围（匹配依赖与 CI 环境）
 

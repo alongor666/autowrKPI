@@ -184,7 +184,7 @@ function processData(csvData) {
         // 如果是单机构模式，只取该机构的计划
         if (dynamicInfo.analysisMode === 'single' && dynamicInfo.organizations.length > 0) {
             const org = dynamicInfo.organizations[0];
-            const plan = planMap.get(org);
+            const plan = getPlanForOrganization(planMap, org);
             if (plan) totalPlanPremium = plan.premium;
         } else {
             // 多机构模式，通常是全省或者多个机构
@@ -193,7 +193,7 @@ function processData(csvData) {
             // 用户的 year-plans.json 里有 "四川分公司" 总数，也有各机构分项。
             // 安全的做法：累加当前数据中存在的所有三级机构的计划值。
             dynamicInfo.organizations.forEach(org => {
-                const plan = planMap.get(org);
+                const plan = getPlanForOrganization(planMap, org);
                 if (plan) {
                     totalPlanPremium += plan.premium || 0;
                 }
@@ -328,6 +328,50 @@ function loadYearPlans() {
     return planMap;
 }
 
+/**
+ * 根据机构名称从年度计划映射中查找匹配项（支持常见后缀与模糊匹配兜底）。
+ * @param {Map<string, {premium: number}>} planMap 年度计划映射
+ * @param {string} organizationName 机构名称（来自数据维度值）
+ * @returns {{premium: number} | null} 匹配到的计划对象
+ */
+function getPlanForOrganization(planMap, organizationName) {
+    if (!planMap || !organizationName) return null;
+
+    const raw = String(organizationName).trim();
+    if (!raw) return null;
+
+    const candidates = [];
+    const add = (v) => {
+        const s = String(v || '').trim();
+        if (!s) return;
+        if (!candidates.includes(s)) candidates.push(s);
+    };
+
+    add(raw);
+    add(raw.replace(/\s+/g, ''));
+
+    const suffixStripped = raw.replace(/(中心支公司|支公司|分公司|营业部|营销服务部|本部)$/g, '').trim();
+    add(suffixStripped);
+    add(suffixStripped.replace(/\s+/g, ''));
+
+    for (const key of candidates) {
+        if (planMap.has(key)) return planMap.get(key);
+    }
+
+    let matchedKey = null;
+    for (const key of planMap.keys()) {
+        if (raw === key) return planMap.get(key);
+        if (raw.includes(key) || key.includes(raw)) {
+            if (matchedKey && matchedKey !== key) {
+                matchedKey = null;
+                break;
+            }
+            matchedKey = key;
+        }
+    }
+    return matchedKey ? planMap.get(matchedKey) : null;
+}
+
 function calculateKPIsForGroup(groupData, plan = null, timeProgress = 1) {
     const fieldMap = {
         premium: ['signed_premium_yuan', '签单保费'],
@@ -423,19 +467,28 @@ function aggregateByDimension(csvData, dimensionField, labelName, planMap, total
 
     const results = [];
     for (const [dimensionValue, groupData] of Object.entries(groups)) {
-        const plan = planMap ? planMap.get(dimensionValue) : null;
+        const plan = planMap ? getPlanForOrganization(planMap, dimensionValue) : null;
         const kpis = calculateKPIsForGroup(groupData, plan, timeProgress);
         const premium_share = totalPremium > 0 ? (kpis['签单保费'] / totalPremium * 100) : 0;
         const claim_share = totalClaim > 0 ? (kpis['已报告赔款'] / totalClaim * 100) : 0;
 
+        const progressRate = kpis['年计划达成率'];
         results.push({
             [labelName]: dimensionValue,
             ...kpis,
             保费占比: premium_share,
             已报告赔款占比: claim_share,
-            年计划达成率: kpis['年计划达成率'] !== null ? kpis['年计划达成率'] : 100
+            保费时间进度达成率: progressRate
         });
     }
+
+    // 计算总费用金额用于费用占比计算
+    const totalExpense = results.reduce((sum, item) => sum + (item.费用额 || 0), 0);
+    
+    // 为每个项目添加费用占比
+    results.forEach(item => {
+        item.费用占比 = totalExpense > 0 ? ((item.费用额 || 0) / totalExpense * 100) : 0;
+    });
 
     results.sort((a, b) => b.签单保费 - a.签单保费);
     return results;
@@ -766,4 +819,3 @@ function calculateTimeProgress(dateStr) {
         return 1;
     }
 }
-

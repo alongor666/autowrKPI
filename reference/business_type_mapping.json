@@ -162,22 +162,58 @@
       "note": "兼容旧文案"
     },
     {
-      "ui_full_name": "非营业货车新车",
-      "ui_short_label": "非营货-1–2t",
+      "ui_full_name": "1–2吨非营业货车",
+      "ui_short_label": "非营货-新",
       "code_identifier": "non_truck_1_2",
       "csv_field_name": "business_type_category",
       "csv_raw_value": "非营业货车新车",
       "maps_to": "1–2吨非营业货车",
-      "note": "兼容旧分类，暂映射到1–2t档"
+      "note": "兼容旧分类，保留新车标识"
     },
     {
-      "ui_full_name": "非营业货车旧车",
-      "ui_short_label": "非营货-1–2t",
+      "ui_full_name": "1–2吨非营业货车",
+      "ui_short_label": "非营货-旧",
       "code_identifier": "non_truck_1_2",
       "csv_field_name": "business_type_category",
       "csv_raw_value": "非营业货车旧车",
       "maps_to": "1–2吨非营业货车",
-      "note": "兼容旧分类，暂映射到1–2t档"
+      "note": "兼容旧分类，保留旧车标识"
+    },
+    {
+      "ui_full_name": "小于1吨非营业货车",
+      "ui_short_label": "非营货-<1t",
+      "code_identifier": "non_truck_lt1",
+      "csv_field_name": "business_type_category",
+      "csv_raw_value": "小于1吨非营业货车",
+      "maps_to": "1吨以下非营业货车",
+      "note": "兼容不同表述方式"
+    },
+    {
+      "ui_full_name": "1吨以下（含）非营业货车",
+      "ui_short_label": "非营货-<1t",
+      "code_identifier": "non_truck_lt1",
+      "csv_field_name": "business_type_category",
+      "csv_raw_value": "1吨以下（含）非营业货车",
+      "maps_to": "1吨以下非营业货车",
+      "note": "兼容带含字表述"
+    },
+    {
+      "ui_full_name": "≤1吨非营业货车",
+      "ui_short_label": "非营货-<1t",
+      "code_identifier": "non_truck_lt1",
+      "csv_field_name": "business_type_category",
+      "csv_raw_value": "≤1吨非营业货车",
+      "maps_to": "1吨以下非营业货车",
+      "note": "兼容数学符号表述"
+    },
+    {
+      "ui_full_name": "1-2吨非营业货车",
+      "ui_short_label": "非营货-1–2t",
+      "code_identifier": "non_truck_1_2",
+      "csv_field_name": "business_type_category",
+      "csv_raw_value": "1-2吨非营业货车",
+      "maps_to": "1–2吨非营业货车",
+      "note": "兼容半角连接符"
     },
     {
       "ui_full_name": "2-9吨营业货车",
@@ -282,7 +318,7 @@
       "营业客车": 2,
       "其他": 1
     },
-    "total_compatibility_mappings": 11,
+    "total_compatibility_mappings": 15,
     "code_identifier_pattern": "business_category_subtype_modifier"
   },
   "usage_locations": {

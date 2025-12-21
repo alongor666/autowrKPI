@@ -180,9 +180,10 @@ class StaticReportGenerator {
                 const canonical = complexMapping.business_types.find(
                     t => t.ui_full_name === compatMapping.maps_to
                 );
+                const uiShortLabel = compatMapping.ui_short_label || canonical?.ui_short_label || compatMapping.csv_raw_value;
                 mapping[compatMapping.csv_raw_value] = {
                     category: canonical?.category || "其他",
-                    ui_short_label: canonical?.ui_short_label || compatMapping.csv_raw_value
+                    ui_short_label: uiShortLabel
                 };
             });
         }

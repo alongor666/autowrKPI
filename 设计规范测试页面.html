@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设计规范可视化测试页面</title>
+    <style>
+        /* 导入现有设计变量 */
+        :root {
+            /* === 主色调系统 === */
+            --primary-red: #a02724;
+            --tesla-blue: #0070c0;
+            
+            /* === 状态色彩系统 === */
+            --success-green: #00b050;
+            --warning-yellow: #ffc000;
+            --danger-red: #c00000;
+            --gray-medium: #666666;
+            
+            /* === 数据深度颜色 === */
+            --data-depth-light: #e6f3ff;
+            --data-depth-medium: #4d94ff;
+            --data-depth-dark: #0066cc;
+            
+            /* === 灰色系统 === */
+            --gray-dark: #333333;
+            --gray-light: #cccccc;
+            --gray-line: #808080;
+            
+            /* === 文字色彩系统 === */
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --text-inverse: #ffffff;
+            
+            /* === 边框和分割线 === */
+            --border-light: #e0e0e0;
+            --border-medium: #cccccc;
+            --border-dark: #999999;
+            
+            /* === 背景色系统 === */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-overlay: rgba(0, 0, 0, 0.5);
+            
+            /* === 图表专用色 === */
+            --chart-gray-line: #808080;
+            --chart-warning-dash: #ffc000;
+            
+            /* === 数据深度色彩 === */
+            --data-depth-light: #e6f3ff;
+            --data-depth-medium: #4d94ff;
+            --data-depth-dark: #0066cc;
+            
+            /* === 字体系统 === */
+            --font-family-primary: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 
+                                   'Microsoft YaHei', 'PingFang SC', Arial, sans-serif;
+            
+            /* === 字体尺寸 === */
+            --font-size-xs: 11px;
+            --font-size-sm: 12px;
+            --font-size-base: 14px;
+            --font-size-md: 16px;
+            --font-size-lg: 18px;
+            --font-size-xl: 24px;
+            --font-size-xxl: 32px;
+            --font-size-xxxl: 48px;
+            
+            /* === 字重 === */
+            --font-weight-light: 300;
+            --font-weight-normal: 400;
+            --font-weight-medium: 500;
+            --font-weight-semibold: 600;
+            --font-weight-bold: 700;
+            
+            /* === 间距系统 === */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            --spacing-xxl: 48px;
+            
+            /* === 圆角系统 === */
+            --border-radius-xs: 4px;
+            --border-radius-sm: 8px;
+            --border-radius-md: 12px;
+            --border-radius-lg: 16px;
+            --border-radius-full: 50%;
+            
+            /* === 阴影系统 === */
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+            --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.12);
+            --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.12);
+            --shadow-focus: 0 0 0 3px rgba(0, 112, 192, 0.2);
+            
+            /* === 动画系统 === */
+            --duration-fast: 150ms;
+            --duration-normal: 250ms;
+            --duration-slow: 350ms;
+            --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            --transition-normal: all var(--duration-normal) var(--ease-out);
+            
+            /* === 布局系统 === */
+            --container-width: 2400px;
+            --chart-height: 500px;
+        }
+        
+        /* 全局样式 */
+        body {
+            font-family: var(--font-family-primary);
+            font-size: var(--font-size-base);
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+            margin: 0;
+            padding: var(--spacing-lg);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: var(--container-width);
+            margin: 0 auto;
+            background: var(--bg-primary);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: var(--primary-red);
+            color: var(--text-inverse);
+            padding: var(--spacing-lg);
+            text-align: center;
+        }
+        
+        .content {
+            padding: var(--spacing-xl);
+        }
+        
+        .section {
+            margin-bottom: var(--spacing-xxl);
+        }
+        
+        .section-title {
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-semibold);
+            margin-bottom: var(--spacing-lg);
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--border-light);
+            padding-bottom: var(--spacing-sm);
+        }
+        
+        /* 颜色展示 */
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .color-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: var(--border-radius-md);
+            padding: var(--spacing-md);
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition-normal);
+        }
+        
+        .color-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .color-swatch {
+            width: 60px;
+            height: 60px;
+            border-radius: var(--border-radius-sm);
+            margin: 0 auto var(--spacing-sm);
+            border: 1px solid var(--border-medium);
+        }
+        
+        .color-name {
+            font-weight: var(--font-weight-medium);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .color-value {
+            font-family: monospace;
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+        
+        /* 按钮展示 */
+        .button-grid {
+            display: flex;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .btn {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--border-radius-sm);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-red);
+            color: var(--text-inverse);
+            border-color: var(--primary-red);
+        }
+        
+        .btn-primary:hover {
+            background-color: #b92b27;
+            border-color: #b92b27;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--text-primary);
+            border-color: var(--border-medium);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--tesla-blue);
+            color: var(--tesla-blue);
+            background-color: rgba(0, 112, 192, 0.05);
+        }
+        
+        .btn-success {
+            background-color: var(--success-green);
+            color: var(--text-inverse);
+            border-color: var(--success-green);
+        }
+        
+        .btn-warning {
+            background-color: var(--warning-yellow);
+            color: var(--text-primary);
+            border-color: var(--warning-yellow);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-red);
+            color: var(--text-inverse);
+            border-color: var(--danger-red);
+        }
+        
+        /* 标签页展示 */
+        .tabs-demo {
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .tab-buttons {
+            display: flex;
+            border-bottom: 2px solid var(--border-light);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: var(--spacing-md) var(--spacing-lg);
+            cursor: pointer;
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            border-bottom: 3px solid transparent;
+            transition: var(--transition-normal);
+        }
+        
+        .tab-btn:hover {
+            color: var(--tesla-blue);
+            background-color: rgba(0, 112, 192, 0.05);
+        }
+        
+        .tab-btn.active {
+            color: var(--tesla-blue);
+            border-bottom-color: var(--tesla-blue);
+            font-weight: var(--font-weight-semibold);
+        }
+        
+        /* 卡片展示 */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            border-radius: var(--border-radius-md);
+            box-shadow: var(--shadow-md);
+            padding: var(--spacing-lg);
+            transition: var(--transition-normal);
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+        
+        .card-title {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            margin-bottom: var(--spacing-sm);
+            color: var(--text-primary);
+        }
+        
+        .card-content {
+            color: var(--text-secondary);
+            line-height: var(--line-height-normal);
+        }
+        
+        /* KPI卡片展示 */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .kpi-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: var(--spacing-lg) var(--spacing-md);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            border-radius: var(--border-radius-md);
+            box-shadow: var(--shadow-md);
+            transition: var(--transition-normal);
+        }
+        
+        .kpi-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+        
+        .kpi-value {
+            font-size: var(--font-size-xxxl);
+            font-weight: var(--font-weight-semibold);
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .kpi-label {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            font-weight: var(--font-weight-medium);
+        }
+        
+        .kpi-value.status-good { color: var(--success-green); }
+        .kpi-value.status-warning { color: var(--warning-yellow); }
+        .kpi-value.status-danger { color: var(--danger-red); }
+        
+        /* 筛选器展示 */
+        .filter-demo {
+            display: flex;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .filter-selector {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--border-light);
+            border-radius: var(--border-radius-sm);
+            padding: var(--spacing-sm) var(--spacing-md);
+            min-width: 120px;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .filter-selector:hover {
+            border-color: var(--tesla-blue);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .filter-selector.active {
+            background-color: var(--tesla-blue);
+            color: var(--text-inverse);
+            border-color: var(--tesla-blue);
+        }
+        
+        .filter-selector.has-selection {
+            background-color: rgba(0, 112, 192, 0.05);
+            border-color: var(--tesla-blue);
+            color: var(--tesla-blue);
+        }
+        
+        /* 数据深度展示 */
+        .depth-demo {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .depth-item {
+            flex: 1;
+            text-align: center;
+            padding: var(--spacing-lg);
+            border-radius: var(--border-radius-md);
+            font-weight: var(--font-weight-medium);
+        }
+        
+        .depth-light { background-color: var(--data-depth-light); }
+        .depth-medium { background-color: var(--data-depth-medium); color: white; }
+        .depth-dark { background-color: var(--data-depth-dark); color: white; }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: var(--spacing-md);
+            }
+            
+            .content {
+                padding: var(--spacing-lg);
+            }
+            
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .color-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .button-grid {
+                flex-direction: column;
+            }
+            
+            .filter-demo {
+                flex-direction: column;
+            }
+        }
+        
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .card-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>设计规范可视化测试页面</h1>
+            <p>验证颜色、文字大小、布局等设计规范的实际效果</p>
+        </header>
+        
+        <div class="content">
+            <!-- 颜色系统展示 -->
+            <section class="section">
+                <h2 class="section-title">🎨 颜色系统</h2>
+                
+                <h3>主色调和状态色</h3>
+                <div class="color-grid">
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--primary-red);"></div>
+                        <div class="color-name">主色调 - 红色</div>
+                        <div class="color-value">#a02724</div>
+                    </div>
+                    
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--tesla-blue);"></div>
+                        <div class="color-name">特斯拉蓝</div>
+                        <div class="color-value">#0070c0</div>
+                    </div>
+                    
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--success-green);"></div>
+                        <div class="color-name">优秀 - 绿色</div>
+                        <div class="color-value">#00b050</div>
+                    </div>
+                    
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--warning-yellow);"></div>
+                        <div class="color-name">预警 - 橙色</div>
+                        <div class="color-value">#ffc000</div>
+                    </div>
+                    
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--danger-red);"></div>
+                        <div class="color-name">危险 - 红色</div>
+                        <div class="color-value">#c00000</div>
+                    </div>
+                    
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--status-normal);"></div>
+                        <div class="color-name">正常 - 灰色</div>
+                        <div class="color-value">#666666</div>
+                    </div>
+                </div>
+                
+                <h3>文字颜色</h3>
+                <div class="color-grid">
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--text-primary);"></div>
+                        <div class="color-name">主要文字</div>
+                        <div class="color-value">#333333</div>
+                    </div>
+                    
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--text-secondary);"></div>
+                        <div class="color-name">次要文字</div>
+                        <div class="color-value">#666666</div>
+                    </div>
+                    
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--text-muted);"></div>
+                        <div class="color-name">辅助文字</div>
+                        <div class="color-value">#999999</div>
+                    </div>
+                </div>
+                
+                <h3>图表专用色</h3>
+                <div class="color-grid">
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--chart-gray-line);"></div>
+                        <div class="color-name">图表灰色连线</div>
+                        <div class="color-value">#808080</div>
+                    </div>
+
+                    <div class="color-card">
+                        <div class="color-swatch" style="background-color: var(--chart-warning-dash);"></div>
+                        <div class="color-name">预警虚线色</div>
+                        <div class="color-value">#ffc000</div>
+                    </div>
+                </div>
+
+                <h3>数据深度颜色</h3>
+                <div class="depth-demo">
+                    <div class="depth-item depth-light">浅度数据<br>33%以下</div>
+                    <div class="depth-item depth-medium">中度数据<br>33%-67%</div>
+                    <div class="depth-item depth-dark">深度数据<br>67%以上</div>
+                </div>
+            </section>
+            
+            <!-- 按钮系统展示 -->
+            <section class="section">
+                <h2 class="section-title">🔘 按钮系统</h2>
+                <div class="button-grid">
+                    <button class="btn btn-primary">主要按钮</button>
+                    <button class="btn btn-secondary">次要按钮</button>
+                    <button class="btn btn-success">成功按钮</button>
+                    <button class="btn btn-warning">预警按钮</button>
+                    <button class="btn btn-danger">危险按钮</button>
+                </div>
+            </section>
+            
+            <!-- 标签页展示 -->
+            <section class="section">
+                <h2 class="section-title">📑 标签页系统 (特斯拉风格)</h2>
+                <div class="tabs-demo">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" onclick="this.classList.add('active'); this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b!==this&&b.classList.remove('active'))">经营概览</button>
+                        <button class="tab-btn" onclick="this.classList.add('active'); this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b!==this&&b.classList.remove('active'))">保费进度</button>
+                        <button class="tab-btn" onclick="this.classList.add('active'); this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b!==this&&b.classList.remove('active'))">变动成本</button>
+                        <button class="tab-btn" onclick="this.classList.add('active'); this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b!==this&&b.classList.remove('active'))">损失暴露</button>
+                        <button class="tab-btn" onclick="this.classList.add('active'); this.parentElement.querySelectorAll('.tab-btn').forEach(b=>b!==this&&b.classList.remove('active'))">费用支出</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- KPI卡片展示 -->
+            <section class="section">
+                <h2 class="section-title">📊 KPI卡片系统</h2>
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-value status-good">95.2%</div>
+                        <div class="kpi-label">保费时间进度达成率</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value status-warning">89.5%</div>
+                        <div class="kpi-label">变动成本率</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value status-good">68.3%</div>
+                        <div class="kpi-label">满期赔付率</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value status-good">12.8%</div>
+                        <div class="kpi-label">费用率</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value" style="color: var(--text-primary);">2,856</div>
+                        <div class="kpi-label">签单保费(万元)</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value status-good">425</div>
+                        <div class="kpi-label">边际贡献额(万元)</div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 筛选器展示 -->
+            <section class="section">
+                <h2 class="section-title">🔍 筛选器系统</h2>
+                <div class="filter-demo">
+                    <div class="filter-selector">
+                        <span>三级机构</span>
+                        <span>▼</span>
+                    </div>
+                    
+                    <div class="filter-selector has-selection">
+                        <span>业务类型: 非营客-新</span>
+                        <span>▼</span>
+                    </div>
+                    
+                    <div class="filter-selector active">
+                        <span>续保状态</span>
+                        <span>▼</span>
+                    </div>
+                    
+                    <div class="filter-selector">
+                        <span>终端来源</span>
+                        <span>▼</span>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 卡片展示 -->
+            <section class="section">
+                <h2 class="section-title">🃏 卡片系统</h2>
+                <div class="card-grid">
+                    <div class="card">
+                        <h3 class="card-title">经营概览</h3>
+                        <div class="card-content">
+                            展示核心KPI指标和多维度数据分析，支持KPI/三级机构/客户类别/业务类型四个维度的切换。
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title">保费进度</h3>
+                        <div class="card-content">
+                            专注于分析各维度的保费收入情况，通过柱状图直观展示保费规模的对比关系。
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title">变动成本</h3>
+                        <div class="card-content">
+                            通过散点图展示各维度在满期赔付率和费用率两个成本维度上的分布情况。
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 字体系统展示 -->
+            <section class="section">
+                <h2 class="section-title">📝 字体系统</h2>
+                <div style="margin-bottom: var(--spacing-lg);">
+                    <div style="font-size: var(--font-size-xs); margin-bottom: var(--spacing-sm);">辅助文字 11px - 用于标签、脚注等次要信息</div>
+                    <div style="font-size: var(--font-size-sm); margin-bottom: var(--spacing-sm);">小号文字 12px - 用于按钮、工具提示等</div>
+                    <div style="font-size: var(--font-size-base); margin-bottom: var(--spacing-sm);">基础文字 14px - 用于正文、内容描述</div>
+                    <div style="font-size: var(--font-size-md); margin-bottom: var(--spacing-sm);">中等文字 16px - 用于副标题、重要信息</div>
+                    <div style="font-size: var(--font-size-lg); margin-bottom: var(--spacing-sm);">大号文字 18px - 用于小标题</div>
+                    <div style="font-size: var(--font-size-xl); margin-bottom: var(--spacing-sm);">标题文字 24px - 用于区块标题</div>
+                    <div style="font-size: var(--font-size-xxl); margin-bottom: var(--spacing-sm);">大标题 32px - 用于页面主标题</div>
+                    <div style="font-size: var(--font-size-xxxl); margin-bottom: var(--spacing-sm);">KPI数值 48px - 用于重要数据展示</div>
+                </div>
+            </section>
+            
+            <!-- 布局系统展示 -->
+            <section class="section">
+                <h2 class="section-title">📐 布局系统 (1.5倍宽度)</h2>
+                <div style="background-color: var(--bg-secondary); padding: var(--spacing-md); border-radius: var(--border-radius-md);">
+                    <p>当前页面容器宽度: <strong>2400px</strong> (原始1600px × 1.5)</p>
+                    <p>在大屏幕上提供更宽的展示空间，柱状图和各元素同比例扩展。</p>
+                    <p>在小屏幕上会自动适配为合适宽度。</p>
+                </div>
+            </section>
+        </div>
+    </div>
+    
+    <script>
+        // 添加键盘导航演示
+        document.addEventListener('keydown', (e) => {
+            if (e.target.closest('.tab-buttons')) {
+                const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+                const currentIndex = buttons.findIndex(btn => btn.classList.contains('active'));
+                
+                switch(e.key) {
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        const prevIndex = currentIndex > 0 ? currentIndex - 1 : buttons.length - 1;
+                        buttons.forEach(b => b.classList.remove('active'));
+                        buttons[prevIndex].classList.add('active');
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        const nextIndex = currentIndex < buttons.length - 1 ? currentIndex + 1 : 0;
+                        buttons.forEach(b => b.classList.remove('active'));
+                        buttons[nextIndex].classList.add('active');
+                        break;
+                }
+            }
+        });
+        
+        // 显示当前视口信息
+        function updateViewportInfo() {
+            const width = window.innerWidth;
+            const breakpoint = width < 768 ? '移动端' : 
+                           width < 1024 ? '平板' : 
+                           width < 1440 ? '桌面' : 
+                           width < 1920 ? '大屏' : '超大屏';
+            
+            console.log(`视口宽度: ${width}px (${breakpoint})`);
+        }
+        
+        updateViewportInfo();
+        window.addEventListener('resize', updateViewportInfo);
+    </script>
+</body>
+</html>

@@ -777,6 +777,7 @@ class DocsUpdater {
 
         // 生成索引文件
         this.generateIndex();
+        this.generateKnowledgeIndex();
 
         console.log('🎉 文档更新完成！');
         console.log(`📁 文档位置: ${this.docsPath}`);
@@ -808,6 +809,145 @@ class DocsUpdater {
         const indexPath = path.join(this.docsPath, 'README.md');
         fs.writeFileSync(indexPath, index, 'utf8');
         console.log(`✅ 生成文档索引: README.md`);
+    }
+
+    // 生成开发文档知识索引
+    generateKnowledgeIndex() {
+        const docsRoot = path.join(this.projectRoot, '开发文档');
+        const featuresRoot = path.join(docsRoot, '01_features');
+        if (!fs.existsSync(featuresRoot)) {
+            console.warn('⚠️ 未找到功能目录，跳过生成 KNOWLEDGE_INDEX.md');
+            return;
+        }
+
+        const featureDirs = fs.readdirSync(featuresRoot, { withFileTypes: true })
+            .filter(entry => entry.isDirectory())
+            .map(entry => entry.name);
+
+        const features = [];
+        featureDirs.forEach(dirName => {
+            const metaPath = path.join(featuresRoot, dirName, 'meta.json');
+            if (!fs.existsSync(metaPath)) return;
+            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+            const readmePath = path.join('开发文档', '01_features', dirName, 'README.md');
+            features.push({
+                id: meta.id || dirName,
+                name: meta.name || dirName,
+                status: meta.status || 'unknown',
+                tags: Array.isArray(meta.tags) ? meta.tags : [],
+                coreFiles: Array.isArray(meta.core_files) ? meta.core_files : [],
+                readmePath
+            });
+        });
+
+        features.sort((a, b) => (a.id || '').localeCompare(b.id || '', 'en'));
+
+        const statusLabel = (status) => {
+            const mapping = {
+                implemented: '✅ implemented',
+                planned: '📝 planned',
+                'in-progress': '🚧 in-progress',
+                in_progress: '🚧 in-progress',
+                deprecated: '⚠️ deprecated'
+            };
+            return mapping[status] || status;
+        };
+
+        const statusTitle = (status) => {
+            const mapping = {
+                implemented: '✅ Implemented',
+                planned: '📝 Planned',
+                'in-progress': '🚧 In Progress',
+                in_progress: '🚧 In Progress',
+                deprecated: '⚠️ Deprecated'
+            };
+            return mapping[status] || status;
+        };
+
+        const formatCoreFiles = (files) => {
+            if (!files || files.length === 0) return '-';
+            if (files.length <= 3) return files.map(f => `\`${f}\``).join(', ');
+            const first = files.slice(0, 3).map(f => `\`${f}\``).join(', ');
+            const remain = files.length - 3;
+            return `${first} ... (+${remain})`;
+        };
+
+        const now = new Date();
+        const pad = (num) => String(num).padStart(2, '0');
+        const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+        let index = '# 知识体系全景导航 (Knowledge System Panorama)\n\n';
+        index += '> **自动生成**: 由 `tools/update-docs.js` 动态构建\n';
+        index += `> **更新时间**: ${timestamp}\n\n`;
+        index += '---\n\n';
+
+        index += '## 🧭 快速导航\n\n';
+        index += '| 功能ID | 功能名称 | 状态 | 标签 | 核心文件 |\n';
+        index += '|--------|----------|------|------|----------|\n';
+        features.forEach(feature => {
+            const tags = feature.tags.length > 0 ? feature.tags.join(', ') : '-';
+            const coreFiles = formatCoreFiles(feature.coreFiles);
+            index += `| [${feature.id}](${feature.readmePath}) | ${feature.name} | ${statusLabel(feature.status)} | ${tags} | ${coreFiles} |\n`;
+        });
+        index += '\n';
+
+        const statusGroups = features.reduce((acc, feature) => {
+            const key = feature.status || 'unknown';
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(feature);
+            return acc;
+        }, {});
+
+        index += '## 📊 状态概览\n\n';
+        Object.keys(statusGroups).sort().forEach(status => {
+            const items = statusGroups[status];
+            index += `### ${statusTitle(status)} (${items.length})\n\n`;
+            items.forEach(feature => {
+                index += `- **[${feature.id}](${feature.readmePath})**: ${feature.name}\n`;
+                if (feature.tags.length > 0) {
+                    const tagList = feature.tags.map(tag => `\`${tag}\``).join(', ');
+                    index += `  - 标签: ${tagList}\n`;
+                }
+                index += '\n';
+            });
+        });
+
+        const tagMap = new Map();
+        features.forEach(feature => {
+            feature.tags.forEach(tag => {
+                if (!tagMap.has(tag)) tagMap.set(tag, []);
+                tagMap.get(tag).push(feature);
+            });
+        });
+
+        index += '## 🏷️ 标签索引\n\n';
+        Array.from(tagMap.keys()).sort((a, b) => a.localeCompare(b, 'zh-CN')).forEach(tag => {
+            const items = tagMap.get(tag) || [];
+            index += `### \`${tag}\` (${items.length})\n\n`;
+            items.forEach(feature => {
+                index += `- **[${feature.id}](${feature.readmePath})**: ${feature.name}\n`;
+            });
+            index += '\n';
+        });
+
+        index += '---\n\n';
+        index += '## 📖 使用指南\n\n';
+        index += '### AI协作者导航路径\n\n';
+        index += '1. **定位**: 在此页面搜索关键词或标签，找到目标功能ID\n';
+        index += '2. **锁定**: 进入功能目录，查看 `meta.json` 获取核心文件位置\n';
+        index += '3. **执行**: 直接修改代码，更新元数据，运行索引脚本\n\n';
+        index += '### 维护者工作流\n\n';
+        index += '```bash\n';
+        index += '# 1. 修改代码或文档\n';
+        index += '# 2. 更新功能元数据\n';
+        index += 'vim 开发文档/01_features/F001/meta.json\n';
+        index += '# 3. 重新生成索引\n';
+        index += 'node \"tools/update-docs.js\"\n';
+        index += '```\n';
+
+        const outputPath = path.join(docsRoot, 'KNOWLEDGE_INDEX.md');
+        fs.writeFileSync(outputPath, index, 'utf8');
+        console.log('✅ 生成文档索引: KNOWLEDGE_INDEX.md');
     }
 
     // 统计代码行数

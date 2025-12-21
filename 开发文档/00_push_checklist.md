@@ -22,7 +22,7 @@
 
 **修复方法**:
 ```bash
-python3 scripts/generate_docs_index.py 开发文档
+node "tools/update-docs.js"
 git add 开发文档/KNOWLEDGE_INDEX.md
 git commit --amend --no-edit
 ```
@@ -221,7 +221,7 @@ vim 开发文档/01_features/F001_csv_parsing/README.md
 # 添加"最近更新"记录
 
 # 4. 重新生成知识库索引
-python3 scripts/generate_docs_index.py 开发文档
+node "tools/update-docs.js"
 
 # 5. 提交变更
 git add .
@@ -244,7 +244,7 @@ vim src/kpi_calculator.py
 vim 开发文档/01_features/F003_kpi_calculation/meta.json
 
 # 3. 重新生成索引
-python3 scripts/generate_docs_index.py 开发文档
+node "tools/update-docs.js"
 
 # 4. 提交并推送
 git add .
@@ -269,7 +269,7 @@ vim 开发文档/decisions/D003_xxx.md
 vim 开发文档/reports/DEVLOG.md
 
 # 5. 重新生成索引
-python3 scripts/generate_docs_index.py 开发文档
+node "tools/update-docs.js"
 
 # 6. 提交并推送
 git add .
@@ -335,7 +335,7 @@ DATE_TOLERANCE_DAYS=0
 
 [检查1] 验证知识库索引是否最新...
 ✗ KNOWLEDGE_INDEX.md 未更新！
-  请运行: python3 scripts/generate_docs_index.py 开发文档
+  请运行: node "tools/update-docs.js"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ❌ 发现 1 个错误，阻止推送！
