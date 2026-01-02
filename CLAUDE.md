@@ -4,6 +4,61 @@
 
 ---
 
+## 🚨 治理协作协议（必读优先级最高）
+
+### 必经入口（接到任务必须先查看）
+
+1. **三大索引**（快速定位）
+   - [📚 DOC_INDEX.md](./开发文档/00_index/DOC_INDEX.md) - 所有文档导航
+   - [💻 CODE_INDEX.md](./开发文档/00_index/CODE_INDEX.md) - 所有代码地图
+   - [📈 PROGRESS_INDEX.md](./开发文档/00_index/PROGRESS_INDEX.md) - 进展追踪入口
+
+2. **两本账**（需求与进展）
+   - [📋 BACKLOG.md](./BACKLOG.md) - 需求待办清单（所有任务的唯一来源）
+   - [📈 PROGRESS.md](./PROGRESS.md) - 里程碑与阻塞记录（状态机思维）
+
+3. **协作上下文**
+   - [🤖 AGENT.md](./AGENT.md) - Agent工作规范与禁区
+
+### 护栏（禁止触碰区域）
+
+**🔒 唯一事实来源（禁止擅自修改）**:
+- `/reference/business_type_mapping.json` - 业务类型映射
+- `/reference/thresholds.json` - KPI阈值配置
+- `/reference/year-plans.json` - 年度保费计划
+- `/开发文档/板块文档/01_指标体系.md` - 指标口径定义
+
+**变更流程**: 必须先在 `/开发文档/decisions/` 创建ADR（决策记录），说明原因、影响、替代方案、回滚策略，再修改。
+
+**🚫 禁止操作**:
+- 不得在主线程进行大数据处理（必须用Worker）
+- 不得直接修改 `rawCSVData`（必须用映射函数）
+- 不得跳过字段映射配置（添加新维度必须更新 `dimensionConfigMap`）
+- 不得在代码中硬编码阈值/映射（必须从 `/reference/` 加载）
+
+### 交付协议（任务完成标准）
+
+**1. 新增需求必须进BACKLOG**
+- 格式：在 `BACKLOG.md` 新增一行，状态为 `PROPOSED`
+- 必填字段：ID、提出时间、板块、需求描述、优先级
+
+**2. DONE必须有证据（缺一不可）**
+- ✅ **关联文档路径**：必填
+- ✅ **关联代码路径**：涉及代码则必填，纯文档任务可标记 `N/A`
+- ✅ **验收/证据**：PR链接 / commit哈希 / 对比报告路径 至少一种
+
+**3. 涉及核心层改动必须更新索引**
+- 修改 `/js/` → 更新 `js/INDEX.md` + `CODE_INDEX.md`
+- 修改 `/reference/` → 更新 `reference/INDEX.md` + 创建ADR
+- 新增功能 → 更新 `开发文档/01_features/INDEX.md` + `DOC_INDEX.md`
+- 新增板块 → 更新 `开发文档/板块文档/INDEX.md` + `DOC_INDEX.md`
+
+**4. 治理一致性校验**
+- 提交前运行：`node scripts/check-governance.mjs`
+- 校验规则：根目录文件完整性、索引存在性、DONE证据完整性
+
+---
+
 ## 📚 项目概览
 
 @README

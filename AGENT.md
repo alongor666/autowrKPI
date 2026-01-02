@@ -1,7 +1,69 @@
-# AGENTS.md（autowrKPI：Agent 工作上下文入口）
+# AGENT.md（autowrKPI：Agent 工作上下文入口）
+
+> **更新时间**: 2026-01-02
+> **用途**: 定义Agent的可读入口、必须回写位置、禁止触碰区域
+
+---
+
+## 🚨 治理规范（必读优先级最高）
+
+### 可读入口（按优先级排序）
+
+**Tier 1 - 必经入口（接到任务必须先查看）**:
+1. [📚 DOC_INDEX.md](./开发文档/00_index/DOC_INDEX.md) - 所有文档导航枢纽
+2. [💻 CODE_INDEX.md](./开发文档/00_index/CODE_INDEX.md) - 所有代码地图
+3. [📈 PROGRESS_INDEX.md](./开发文档/00_index/PROGRESS_INDEX.md) - 进展追踪与状态机
+4. [📋 BACKLOG.md](./BACKLOG.md) - 需求待办清单（唯一任务来源）
+5. [📈 PROGRESS.md](./PROGRESS.md) - 里程碑与阻塞记录
+
+**Tier 2 - 核心层索引（定位具体代码/配置）**:
+- [/js/INDEX.md](./js/INDEX.md) - 前端核心代码层
+- [/reference/INDEX.md](./reference/INDEX.md) - 配置与规则层（唯一事实来源）
+- [/开发文档/01_features/INDEX.md](./开发文档/01_features/INDEX.md) - 功能特性文档
+- [/开发文档/板块文档/INDEX.md](./开发文档/板块文档/INDEX.md) - 板块设计文档
+- [/开发文档/decisions/INDEX.md](./开发文档/decisions/INDEX.md) - 技术决策记录
+
+**Tier 3 - 细节文档（深入了解具体实现）**:
+- 见各索引指向的README、板块文档、ADR等
+
+### 必须回写位置（任务完成后必须更新）
+
+**任何任务开始前**:
+- 在 `BACKLOG.md` 登记需求，状态设为 `PROPOSED` → `TRIAGED` → `IN_PROGRESS`
+
+**任务完成后**:
+1. **更新BACKLOG**: 填写关联文档、关联代码、验收/证据，状态改为 `DONE`
+2. **更新PROGRESS**: 在 `PROGRESS.md` 记录里程碑与下一步接力
+3. **更新对应索引**:
+   - 修改代码 → 更新 `CODE_INDEX.md` + 核心层 `INDEX.md`（如 `js/INDEX.md`）
+   - 新增功能 → 更新 `开发文档/01_features/INDEX.md` + `DOC_INDEX.md`
+   - 修改配置 → 创建ADR（`/开发文档/decisions/DXXX.md`）+ 更新 `reference/INDEX.md`
+   - 新增板块 → 更新 `开发文档/板块文档/INDEX.md` + `DOC_INDEX.md`
+4. **运行校验**: `node scripts/check-governance.mjs` 确保治理一致性
+
+### 禁止触碰区域（必须遵守）
+
+**🔒 唯一事实来源（禁止擅自修改，必须先创建ADR）**:
+- `/reference/business_type_mapping.json` - 业务类型映射
+- `/reference/thresholds.json` - KPI阈值配置
+- `/reference/year-plans.json` - 年度保费计划
+- `/开发文档/板块文档/01_指标体系.md` - 指标口径定义
+
+**🚫 禁止操作**:
+- 禁止在代码中硬编码阈值、映射、配置（必须从 `/reference/` 加载）
+- 禁止跳过索引更新（修改代码必须同步更新 `CODE_INDEX.md`）
+- 禁止在BACKLOG中标记DONE而不填写证据（会被校验脚本拦截）
+- 禁止删除历史记录（PROGRESS.md的里程碑不可删除，只能追加）
+- 禁止直接修改 `/src` 下业务实现（本项目无 `/src`，核心代码在 `/js`）
+
+**⚠️ 灰色地带（需谨慎操作）**:
+- 修改 `/js/` 核心代码：必须更新关联功能文档（`/开发文档/01_features/`）
+- 添加新维度：必须同时更新 `dimensionConfigMap`（`js/data.worker.js:524-532`）+ 维度配置（`js/dashboard.js:1496-1507`）+ 维度颜色（`css/dashboard.css:1172-1179`）
+
+---
 
 ## 1. 项目一句话
-本仓库是“纯前端车险经营分析可视化系统”：导入 CSV/Excel 数据，做多维聚合并用 ECharts（可视化图表库）展示，支持下钻筛选，离线运行。
+本仓库是"纯前端车险经营分析可视化系统"：导入 CSV/Excel 数据，做多维聚合并用 ECharts（可视化图表库）展示，支持下钻筛选，离线运行。
 
 ## 2. 目录结构地图（从哪里找代码/规则/文档）
 - 入口与页面

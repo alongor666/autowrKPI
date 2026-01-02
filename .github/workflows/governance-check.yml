@@ -1,0 +1,46 @@
+name: 治理一致性校验 (Governance Check)
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+  push:
+    branches: [ main, master, develop ]
+    paths:
+      - 'BACKLOG.md'
+      - 'PROGRESS.md'
+      - 'CLAUDE.md'
+      - 'AGENT.md'
+      - '开发文档/**'
+      - 'js/**'
+      - 'reference/**'
+      - 'scripts/check-governance.mjs'
+
+jobs:
+  governance-check:
+    runs-on: ubuntu-latest
+    name: 检查治理规则
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v3
+
+      - name: 🔧 设置Node.js环境
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: 🔍 运行治理一致性校验
+        run: |
+          echo "开始治理一致性校验..."
+          node scripts/check-governance.mjs
+
+      - name: ✅ 校验通过
+        if: success()
+        run: |
+          echo "::notice::治理规则校验通过！"
+
+      - name: ❌ 校验失败
+        if: failure()
+        run: |
+          echo "::error::治理规则校验失败，请修复上述错误后再提交。"
+          exit 1
