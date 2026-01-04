@@ -118,7 +118,7 @@ class StaticReportGenerator {
     }
 
     initWorker() {
-        this.worker = new Worker('js/data.worker.js');
+        this.worker = new Worker('js/workers/data.worker.js');
         this.worker.onmessage = (e) => {
             const { type, payload } = e.data;
             switch (type) {
