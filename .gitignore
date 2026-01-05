@@ -35,6 +35,15 @@ output/
 
 # Claude/Trae
 .claude/
+.cursor/
+.trae/
+
+# Node.js
+node_modules/
+bun.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Zips
 *.zip
