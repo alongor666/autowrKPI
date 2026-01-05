@@ -10,7 +10,7 @@ let thresholds = null;
 
 // Handle messages from the main thread
 self.onmessage = function(e) {
-    const { type, payload } = e.data;
+    const { type, payload, messageId } = e.data;
 
     try {
         switch (type) {
@@ -35,14 +35,14 @@ self.onmessage = function(e) {
             case 'filter_data':
                 if (!rawCSVData) throw new Error('No CSV data loaded');
                 const filteredResult = applyFiltersAndRecalc(rawCSVData, payload.filterState);
-                self.postMessage({ type: 'filter_complete', payload: filteredResult });
+                self.postMessage({ type: 'filter_complete', payload: filteredResult, messageId });
                 break;
 
             case 'get_dimension_values':
                 if (!rawCSVData) throw new Error('No CSV data loaded');
                 const { dimension, currentFilters } = payload;
                 const values = getDimensionValues(rawCSVData, dimension, currentFilters);
-                self.postMessage({ type: 'dimension_values_response', payload: values });
+                self.postMessage({ type: 'dimension_values_response', payload: values, messageId });
                 break;
 
             case 'get_raw_data_slice':
@@ -55,7 +55,7 @@ self.onmessage = function(e) {
                 break;
         }
     } catch (error) {
-        self.postMessage({ type: 'error', payload: error.message });
+        self.postMessage({ type: 'error', payload: error.message, messageId });
     }
 };
 

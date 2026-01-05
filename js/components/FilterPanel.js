@@ -38,7 +38,7 @@ class FilterPanel {
 
     DIMENSION_CONFIG.forEach(dimension => {
       const button = document.createElement('div');
-      button.className = 'drill-selector';
+      button.className = 'drill-selector-btn';
       button.dataset.dimension = dimension.key;
       button.innerHTML = `
         <span class="btn-label">${dimension.label}</span>
@@ -178,7 +178,7 @@ class FilterPanel {
    * @param {string} dimensionKey - Dimension key
    */
   updateSelectorCount(dimensionKey) {
-    const selector = document.querySelector(`.drill-selector[data-dimension="${dimensionKey}"]`);
+    const selector = document.querySelector(`.drill-selector-btn[data-dimension="${dimensionKey}"]`);
     if (!selector) return;
 
     const count = this.currentFilters.drill.draft[dimensionKey]?.length || 0;
@@ -239,7 +239,7 @@ class FilterPanel {
 
     // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
-      if (this.activeDropdown && !e.target.closest('.drill-selector') && !e.target.closest('#drill-dropdown-panel')) {
+      if (this.activeDropdown && !e.target.closest('.drill-selector-btn') && !e.target.closest('#drill-dropdown-panel')) {
         this.closeDropdown();
       }
     });
